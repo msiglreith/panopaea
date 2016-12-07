@@ -1,6 +1,5 @@
 
 extern crate panopaea;
-extern crate image;
 extern crate stopwatch;
 
 use panopaea::*;
@@ -8,28 +7,6 @@ use stopwatch::{Stopwatch};
 
 use std::io::Write;
 use std::io::stdout;
-
-use std::path::Path;
-use std::fs::File;
-
-fn save_image_rgb(name: String, buf: &[[u8; 3]], width: usize, height: usize) {
-    assert!(width * height == buf.len());
-
-    let mut imgbuf = image::ImageBuffer::new(width as u32, height as u32);
-
-    for (x, y, pixel) in imgbuf.enumerate_pixels_mut() {
-        let px = buf[(height - 1 - y as usize) * width + x as usize];
-        *pixel = image::Rgb(px);
-    }
-
-    let ref mut out = File::create(&Path::new(&name)).unwrap();
-    let _ = image::ImageRgb8(imgbuf).save(out, image::PNG);
-}
-
-fn transfer(x: &f64, lower: f64, upper: f64) -> u8 {
-    let v = x.min(upper).max(lower);
-    ((v - lower) / (upper - lower) * 255.0) as u8
-}
 
 fn main() {
     println!("Hello, world!");
