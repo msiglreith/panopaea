@@ -1,5 +1,5 @@
 
-use grid::{Grid2D, MacGrid2D};
+use grid::{Grid, Grid2D, MacGrid2D};
 use math;
 
 use ndarray::{Array, Array2, Ix2};
@@ -238,8 +238,8 @@ pub fn project_cg(
     // Returns a pressure field to make the velocity field divergence-free
 
     // early out, nothing todo when the velocity field is already div-free
-    if div.max_norm() < threshold {
-        println!("div start norm: {:?}", div.max_norm());
+    if div.norm_max() < threshold {
+        println!("div start norm: {:?}", div.norm_max());
         return;
     }
 
@@ -251,41 +251,33 @@ pub fn project_cg(
 
     {
         let mut residual_error = 0.0f64;
-        let mut sigma = auxiliary_grid.dot(auxiliary_grid);
-        // let mut pressure = pressure.as_slice().unwrap();
-        let mut search = search_grid.as_slice().unwrap();
-        let mut auxiliary = auxiliary_grid.as_slice().unwrap();
+        let mut sigma = auxiliary_grid.view_linear().dot(&auxiliary_grid.view_linear());
 
         'iter: for i in 0..max_iterations {
             apply_sparse_matrix(auxiliary_grid, search_grid, diag, plus_x, plus_y, timestep);
-            // let alpha = sigma/auxiliary.dot(search);
-            let alpha = 0.1; // TODO
+            let alpha = sigma/auxiliary_grid.view_linear().dot(&search_grid.view_linear());
             
 
             pressure.scaled_add( alpha, search_grid);
             residual.scaled_add(-alpha, auxiliary_grid);
 
-            residual_error = residual.max_norm();
+            residual_error = residual.norm_max();
             if residual_error < threshold {
                 println!("Iterations {:?}", i);
                 break 'iter;
             }
 
             auxiliary_grid.assign(residual);
-            let sigma_new = auxiliary_grid.dot(residual);
-            // let beta = sigma_new/sigma; // TODO:
-            let beta = 0.1;
+            let auxiliary = auxiliary_grid.view_linear();
+            let sigma_new = auxiliary.dot(&residual.view_linear());
+            let beta = sigma_new/sigma;
+
+            let mut search = search_grid.view_linear_mut();
 
             for i in 0..search.len() {
                 search[i] = auxiliary[i] + beta*search[i];
             }
 
-            /*
-            search_grid.zip_mut_with(auxiliary_grid, move |search, &aux| {
-                *search = aux + beta*(*search);
-            });
-            */
-            
             sigma = sigma_new;
         }
  
