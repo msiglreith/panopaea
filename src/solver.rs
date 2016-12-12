@@ -251,13 +251,12 @@ pub fn project_cg(
 
     {
         let mut residual_error = 0.0f64;
-        let mut sigma = auxiliary_grid.view_linear().dot(&auxiliary_grid.view_linear());
+        let mut sigma = auxiliary_grid.dot_linear(auxiliary_grid);
 
         'iter: for i in 0..max_iterations {
             apply_sparse_matrix(auxiliary_grid, search_grid, diag, plus_x, plus_y, timestep);
-            let alpha = sigma/auxiliary_grid.view_linear().dot(&search_grid.view_linear());
+            let alpha = sigma/auxiliary_grid.dot_linear(search_grid);
             
-
             pressure.scaled_add( alpha, search_grid);
             residual.scaled_add(-alpha, auxiliary_grid);
 
@@ -268,11 +267,12 @@ pub fn project_cg(
             }
 
             auxiliary_grid.assign(residual);
-            let auxiliary = auxiliary_grid.view_linear();
-            let sigma_new = auxiliary.dot(&residual.view_linear());
+            
+            let sigma_new = auxiliary_grid.dot_linear(residual);
             let beta = sigma_new/sigma;
 
             let mut search = search_grid.view_linear_mut();
+            let auxiliary = auxiliary_grid.view_linear();
 
             for i in 0..search.len() {
                 search[i] = auxiliary[i] + beta*search[i];
@@ -280,9 +280,7 @@ pub fn project_cg(
 
             sigma = sigma_new;
         }
- 
     }
-    
 
     project_velocity(vel, pressure, timestep);
 }

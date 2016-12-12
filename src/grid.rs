@@ -3,10 +3,13 @@ use ndarray::{ArrayBase, ArrayView, ArrayViewMut, Dimension, DataOwned};
 use ndarray::{Array, Ix1, Ix2};
 use cgmath::BaseFloat;
 
-pub trait Grid<A: BaseFloat, D> {
+pub trait Grid<A: BaseFloat + 'static, D> {
     fn norm_max(&self) -> A;
     fn view_linear(&self) -> ArrayView<A, Ix1>;
     fn view_linear_mut(&mut self) -> ArrayViewMut<A, Ix1>;
+    fn dot_linear<Rhs: Grid<A, D>>(&self, rhs: &Rhs) -> A {
+        self.view_linear().dot(&rhs.view_linear())
+    }
 }
 
 impl<D: Dimension> Grid<f64, D> for ArrayBase<Vec<f64>, D> {
