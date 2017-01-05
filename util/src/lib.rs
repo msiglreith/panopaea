@@ -1,5 +1,5 @@
 
 extern crate image;
 
-pub mod export_png;
+pub mod png;
 pub mod imgproc;

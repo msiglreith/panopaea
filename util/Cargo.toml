@@ -1,0 +1,11 @@
+[package]
+name = "panopaea-util"
+version = "0.1.0"
+authors = ["msiglreith <msiglreith@users.noreply.github.com>"]
+workspace = ".."
+
+[lib]
+name = "panopaea_util"
+
+[dependencies]
+image = "0.10.3"

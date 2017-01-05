@@ -18,8 +18,8 @@ impl Solver {
         }
     }
 
-    pub fn allocate_grid_2d<T: BaseFloat>(&self, size: (usize, usize)) -> Grid2D<T> {
-        Array2::<T>::zeros(size)
+    pub fn allocate_grid_2d<T: BaseFloat>(&self, size: (usize, usize), val: T) -> Grid2D<T> {
+        Array2::<T>::from_elem(size, val)
     }
 }
 
@@ -27,12 +27,12 @@ pub fn integrate_euler(pos: cgmath::Vector2<f64>, vel: cgmath::Vector2<f64>, dt:
     pos + dt * vel
 }
 
-pub fn advect<T: BaseFloat>(dest: &mut Grid2D<f64>, quantity: &Grid2D<f64>, timestep: f64, vel: &MacGrid2D<f64>) {
+pub fn advect(dest: &mut Grid2D<f64>, quantity: &Grid2D<f64>, timestep: f64, vel: &MacGrid2D<f64>) {
     let q = &quantity;
 
     let (w, h) = q.dim();
-    for y in 0 .. h {
-        for x in 0 .. w {
+    for x in 0 .. w {
+        for y in 0 .. h {
             let vel_center = cgmath::vec2(
                 (vel.x[(x, y)] + vel.x[(x + 1, y    )]) / 2.0,
                 (vel.y[(x, y)] + vel.y[(x    , y + 1)]) / 2.0
@@ -69,8 +69,8 @@ pub fn advect<T: BaseFloat>(dest: &mut Grid2D<f64>, quantity: &Grid2D<f64>, time
 pub fn advect_mac(dest: &mut MacGrid2D<f64>, quantity: &MacGrid2D<f64>, timestep: f64, vel: &MacGrid2D<f64>) {
     let q = &quantity;
 
-    for y in 0 .. q.x.dim().1  {
-        for x in 0 .. q.x.dim().0 {
+    for x in 0 .. q.x.dim().0  {
+        for y in 0 .. q.x.dim().1 {
             let vel = cgmath::vec2(vel.x[(x, y)],
                 (vel.y[(cmp::min(x, vel.y.dim().0-1), y  )] +
                  vel.y[(cmp::min(x, vel.y.dim().0-1), y+1)] +
@@ -106,8 +106,8 @@ pub fn advect_mac(dest: &mut MacGrid2D<f64>, quantity: &MacGrid2D<f64>, timestep
         }
     }
 
-    for y in 0 .. q.y.dim().1  {
-        for x in 0 .. q.y.dim().0 {
+    for x in 0 .. q.y.dim().0  {
+        for y in 0 .. q.y.dim().1 {
             let vel = cgmath::vec2(
                 (vel.x[(x  , cmp::min(y, vel.x.dim().1-1))] +
                  vel.x[(x+1, cmp::min(y, vel.x.dim().1-1))] +
@@ -145,8 +145,8 @@ pub fn advect_mac(dest: &mut MacGrid2D<f64>, quantity: &MacGrid2D<f64>, timestep
 }
 
 fn build_div(div: &mut Grid2D<f64>, vel: &mut MacGrid2D<f64>) {
-    for y in 0 .. div.dim().1 {
-        for x in 0 .. div.dim().0 {
+    for x in 0 .. div.dim().0 {
+        for y in 0 .. div.dim().1 {
             div[(x, y)] = -(vel.x[(x+1, y)] - vel.x[(x, y)] + vel.y[(x, y+1)] - vel.y[(x, y)]);
         }
     }
@@ -154,8 +154,8 @@ fn build_div(div: &mut Grid2D<f64>, vel: &mut MacGrid2D<f64>) {
 
 fn project_velocity(vel: &mut MacGrid2D<f64>, pressure: &Grid2D<f64>, timestep: f64) {
     let scale = timestep;
-    for y in 0 .. vel.dimension.1 {
-        for x in 0 .. vel.dimension.0 {
+    for x in 0 .. vel.dimension.0 {
+        for y in 0 .. vel.dimension.1 {
             if x < pressure.dim().0 { vel.x[(x, y)] -= scale*pressure[(x, y)]; }
             if x > 0 { vel.x[(x, y)] += scale*pressure[(x-1, y)]; }
             if y < pressure.dim().1 { vel.y[(x, y)] -= scale*pressure[(x, y)]; }
@@ -184,8 +184,8 @@ fn apply_sparse_matrix(
     timestep: f64,
 ) {
     let scale = timestep;
-    for y in 0 .. src.dim().1 {
-        for x in 0 .. src.dim().0 {
+    for x in 0 .. src.dim().0 {
+        for y in 0 .. src.dim().1 {
             dest[(x, y)] = {
                 let mut b = diag[(x, y)] * src[(x, y)];
                 if x > 0 { b += plus_x[(x-1, y)] * src[(x-1, y  )]; }
@@ -208,8 +208,8 @@ pub fn build_sparse_matrix(
     plus_x.fill(0.0);
     plus_y.fill(0.0);
 
-    for y in 0..diag.dim().1 {
-        for x in 0..diag.dim().0 {
+    for x in 0..diag.dim().0 {
+        for y in 0..diag.dim().1 {
             if x > 0 { diag[(x, y)] += 1.0; }
             if y > 0 { diag[(x, y)] += 1.0; }
             if x < diag.dim().0-1 { diag[(x, y)] += 1.0; plus_x[(x, y)] -= 1.0; }

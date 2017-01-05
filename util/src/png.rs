@@ -3,7 +3,7 @@ use image;
 use std::path::Path;
 use std::fs::File;
 
-pub fn export_png(name: String, buf: &[[u8; 3]], width: usize, height: usize) {
+pub fn export(name: String, buf: &[[u8; 3]], (width, height): (usize, usize)) {
     assert!(width * height == buf.len());
 
     let mut imgbuf = image::ImageBuffer::new(width as u32, height as u32);
