@@ -48,7 +48,7 @@ fn main() {
         {
             let mut d = density.view_mut();
             for y in 5 .. 20 {
-                for x in 60 .. 70 {
+                for x in 54 .. 64 {
                     d[(x, y)] = 1.0;
                     vel.y[(x, y)] = 20.0;
                 }
@@ -70,11 +70,20 @@ fn main() {
 
         // debug output
         if i % 10 == 0 {
-            let img_data = density.iter().map(|x| {[
-                    util::imgproc::transfer(x, 0.0, 1.0),
-                    util::imgproc::transfer(x, 0.0, 1.0),
-                    util::imgproc::transfer(x, 0.0, 1.0),
-                ]}).collect::<Vec<_>>();
+            let img_data = {
+                let mut data = Vec::new();
+                for y in 0 .. density.dim().1 {
+                    for x in 0 .. density.dim().0 {
+                        let val = &density[(x, y)];
+                        data.push([
+                            util::imgproc::transfer(val, 0.0, 1.0),
+                            util::imgproc::transfer(val, 0.0, 1.0),
+                            util::imgproc::transfer(val, 0.0, 1.0),
+                        ]);
+                    }
+                }
+                data
+            };
 
             util::png::export(
                 format!("output/density_{:?}.png", i),
