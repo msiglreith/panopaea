@@ -15,14 +15,14 @@ fn main() {
     let mut pressure = solver.allocate_grid_2d::<f64>(domain, 0.0);
     let mut vel = MacGrid2D::new(
             domain,
-            solver.allocate_grid_2d::<f64>((domain.0 + 1, domain.1    ), 0.0),
             solver.allocate_grid_2d::<f64>((domain.0    , domain.1 + 1), 0.0),
+            solver.allocate_grid_2d::<f64>((domain.0 + 1, domain.1    ), 0.0),
         );
 
     let mut vel_temp = MacGrid2D::new(
             domain,
-            solver.allocate_grid_2d::<f64>((domain.0 + 1, domain.1    ), 0.0),
             solver.allocate_grid_2d::<f64>((domain.0    , domain.1 + 1), 0.0),
+            solver.allocate_grid_2d::<f64>((domain.0 + 1, domain.1    ), 0.0),
         );
 
     //
@@ -49,8 +49,8 @@ fn main() {
             let mut d = density.view_mut();
             for y in 5 .. 20 {
                 for x in 54 .. 64 {
-                    d[(x, y)] = 1.0;
-                    vel.y[(x, y)] = 20.0;
+                    d[(y, x)] = 1.0;
+                    vel.y[(y, x)] = 20.0;
                 }
             }
         }
@@ -72,9 +72,9 @@ fn main() {
         if i % 10 == 0 {
             let img_data = {
                 let mut data = Vec::new();
-                for y in 0 .. density.dim().1 {
-                    for x in 0 .. density.dim().0 {
-                        let val = &density[(x, y)];
+                for y in 0 .. density.dim().0 {
+                    for x in 0 .. density.dim().1 {
+                        let val = &density[(y, x)];
                         data.push([
                             util::imgproc::transfer(val, 0.0, 1.0),
                             util::imgproc::transfer(val, 0.0, 1.0),
@@ -89,6 +89,41 @@ fn main() {
                 format!("output/density_{:?}.png", i),
                 &img_data,
                 density.dim());
+
+            /*
+            let img_vel_x_data = {
+                let mut data = Vec::new();
+                for y in 0 .. vel.x.dim().0 {
+                    for x in 0 .. vel.x.dim().1 {
+                        let val = &vel.x[(y, x)];
+                        data.push([
+                            util::imgproc::transfer(val, -10.0, 10.0),
+                            util::imgproc::transfer(val, -10.0, 10.0),
+                            util::imgproc::transfer(val, -10.0, 10.0),
+                        ]);
+                    }
+                }
+                data
+            };
+
+            util::png::export(
+                format!("output/vel_x_{:?}.png", i),
+                &img_vel_x_data,
+                vel.x.dim());
+
+            let img_vel_y_data = vel.y.iter().map(|val| 
+                [
+                    util::imgproc::transfer(val, -10.0, 10.0),
+                    util::imgproc::transfer(val, -10.0, 10.0),
+                    util::imgproc::transfer(val, -10.0, 10.0),
+                ]).collect::<Vec<_>>();
+
+            util::png::export(
+                format!("output/vel_y_{:?}.png", i),
+                &img_vel_y_data,
+                vel.y.dim());
+
+            */
         }
     }
 }

@@ -30,12 +30,12 @@ pub fn integrate_euler(pos: cgmath::Vector2<f64>, vel: cgmath::Vector2<f64>, dt:
 pub fn advect(dest: &mut Grid2D<f64>, quantity: &Grid2D<f64>, timestep: f64, vel: &MacGrid2D<f64>) {
     let q = &quantity;
 
-    let (w, h) = q.dim();
-    for x in 0 .. w {
-        for y in 0 .. h {
+    let (h, w) = q.dim();
+    for y in 0 .. h {
+        for x in 0 .. w {
             let vel_center = cgmath::vec2(
-                (vel.x[(x, y)] + vel.x[(x + 1, y    )]) / 2.0,
-                (vel.y[(x, y)] + vel.y[(x    , y + 1)]) / 2.0
+                (vel.x[(y, x)] + vel.x[(y, x+1)]) / 2.0,
+                (vel.y[(y, x)] + vel.y[(y+1, x)]) / 2.0
             );
 
             let pos = cgmath::vec2(
@@ -45,7 +45,7 @@ pub fn advect(dest: &mut Grid2D<f64>, quantity: &Grid2D<f64>, timestep: f64, vel
 
             let pos_prev = integrate_euler(pos, vel_center, -timestep);
 
-            dest[(x, y)] = {
+            dest[(y, x)] = {
                 // interpolate bilinear
                 let px = (pos_prev.x - 0.5).max(0.0).min(w as f64 - 1.00001);
                 let py = (pos_prev.y - 0.5).max(0.0).min(h as f64 - 1.00001);
@@ -57,8 +57,8 @@ pub fn advect(dest: &mut Grid2D<f64>, quantity: &Grid2D<f64>, timestep: f64, vel
                 let v = py - iy as f64;
 
                 math::bilinear(
-                    q[(ix, iy  )], q[(ix+1, iy  )],
-                    q[(ix, iy+1)], q[(ix+1, iy+1)],
+                    q[(iy  , ix)], q[(iy  , ix+1)],
+                    q[(iy+1, ix)], q[(iy+1, ix+1)],
                     u, v
                 )
             };
@@ -69,13 +69,13 @@ pub fn advect(dest: &mut Grid2D<f64>, quantity: &Grid2D<f64>, timestep: f64, vel
 pub fn advect_mac(dest: &mut MacGrid2D<f64>, quantity: &MacGrid2D<f64>, timestep: f64, vel: &MacGrid2D<f64>) {
     let q = &quantity;
 
-    for x in 0 .. q.x.dim().0  {
-        for y in 0 .. q.x.dim().1 {
-            let vel = cgmath::vec2(vel.x[(x, y)],
-                (vel.y[(cmp::min(x, vel.y.dim().0-1), y  )] +
-                 vel.y[(cmp::min(x, vel.y.dim().0-1), y+1)] +
-                 vel.y[(x.saturating_sub(1), y  )] +
-                 vel.y[(x.saturating_sub(1), y+1)])
+    for y in 0 .. q.x.dim().0  {
+        for x in 0 .. q.x.dim().1 {
+            let vel = cgmath::vec2(vel.x[(y, x)],
+                (vel.y[(y  , cmp::min(x, vel.y.dim().1-1))] +
+                 vel.y[(y+1, cmp::min(x, vel.y.dim().1-1))] +
+                 vel.y[(y  , x.saturating_sub(1))] +
+                 vel.y[(y+1, x.saturating_sub(1))])
                  / 4.0);
 
             let pos = cgmath::vec2(
@@ -85,36 +85,36 @@ pub fn advect_mac(dest: &mut MacGrid2D<f64>, quantity: &MacGrid2D<f64>, timestep
 
             let pos_prev = integrate_euler(pos, vel, -timestep);
 
-            dest.x[(x, y)] = {
+            dest.x[(y, x)] = {
                 // interpolate bilinear
                 let px = (pos_prev.x - 0.0).floor().max(0.0) as usize;
                 let py = (pos_prev.y - 0.5).floor().max(0.0) as usize;
 
-                let x0 = cmp::min(px + 0, q.x.dim().0 - 1); let y0 = cmp::min(py + 0, q.x.dim().1 - 1);
-                let x1 = cmp::min(px + 1, q.x.dim().0 - 1); let y1 = cmp::min(py + 1, q.x.dim().1 - 1);
+                let x0 = cmp::min(px + 0, q.x.dim().1 - 1); let y0 = cmp::min(py + 0, q.x.dim().0 - 1);
+                let x1 = cmp::min(px + 1, q.x.dim().1 - 1); let y1 = cmp::min(py + 1, q.x.dim().0 - 1);
 
                 // // println!("    temp - amount");
                 let s = (pos_prev.x - 0.0 - px as f64).min(1.0).max(0.0);
                 let t = (pos_prev.y - 0.5 - py as f64).min(1.0).max(0.0);
 
                 math::bilinear(
-                    q.x[(x0, y0)], q.x[(x1, y0)],
-                    q.x[(x0, y1)], q.x[(x1, y1)],
+                    q.x[(y0, x0)], q.x[(y0, x1)],
+                    q.x[(y1, x0)], q.x[(y1, x1)],
                     s, t
                 )
             };
         }
     }
 
-    for x in 0 .. q.y.dim().0  {
-        for y in 0 .. q.y.dim().1 {
+    for y in 0 .. q.y.dim().0  {
+        for x in 0 .. q.y.dim().1 {
             let vel = cgmath::vec2(
-                (vel.x[(x  , cmp::min(y, vel.x.dim().1-1))] +
-                 vel.x[(x+1, cmp::min(y, vel.x.dim().1-1))] +
-                 vel.x[(x  , y.saturating_sub(1))] +
-                 vel.x[(x+1, y.saturating_sub(1))]
+                (vel.x[(cmp::min(y, vel.x.dim().0-1), x  )] +
+                 vel.x[(cmp::min(y, vel.x.dim().0-1), x+1)] +
+                 vel.x[(y.saturating_sub(1), x  )] +
+                 vel.x[(y.saturating_sub(1), x+1)]
                 ) / 4.0,
-                vel.y[(x, y)]);
+                vel.y[(y, x)]);
 
             let pos = cgmath::vec2(
                 (x as f64 + 0.5),
@@ -123,20 +123,20 @@ pub fn advect_mac(dest: &mut MacGrid2D<f64>, quantity: &MacGrid2D<f64>, timestep
 
             let pos_prev = integrate_euler(pos, vel, -timestep);
 
-            dest.y[(x, y)] = {
+            dest.y[(y, x)] = {
                 // interpolate bilinear
                 let px = (pos_prev.x - 0.5).floor().max(0.0) as usize;
                 let py = (pos_prev.y - 0.0).floor().max(0.0) as usize;
 
-                let x0 = cmp::min(px + 0, q.y.dim().0 - 1); let y0 = cmp::min(py + 0, q.y.dim().1 - 1);
-                let x1 = cmp::min(px + 1, q.y.dim().0 - 1); let y1 = cmp::min(py + 1, q.y.dim().1 - 1);
+                let x0 = cmp::min(px    , q.y.dim().1 - 1); let y0 = cmp::min(py    , q.y.dim().0 - 1);
+                let x1 = cmp::min(px + 1, q.y.dim().1 - 1); let y1 = cmp::min(py + 1, q.y.dim().0 - 1);
 
                 let s = (pos_prev.x - 0.5 - px as f64).min(1.0).max(0.0);
                 let t = (pos_prev.y - 0.0 - py as f64).min(1.0).max(0.0);
 
                 math::bilinear(
-                    q.y[(x0, y0)], q.y[(x1, y0)],
-                    q.y[(x0, y1)], q.y[(x1, y1)],
+                    q.y[(y0, x0)], q.y[(y0, x1)],
+                    q.y[(y1, x0)], q.y[(y1, x1)],
                     s, t
                 )
             };
@@ -145,32 +145,32 @@ pub fn advect_mac(dest: &mut MacGrid2D<f64>, quantity: &MacGrid2D<f64>, timestep
 }
 
 fn build_div(div: &mut Grid2D<f64>, vel: &mut MacGrid2D<f64>) {
-    for x in 0 .. div.dim().0 {
-        for y in 0 .. div.dim().1 {
-            div[(x, y)] = -(vel.x[(x+1, y)] - vel.x[(x, y)] + vel.y[(x, y+1)] - vel.y[(x, y)]);
+    for y in 0 .. div.dim().0 {
+        for x in 0 .. div.dim().1 {
+            div[(y, x)] = -(vel.x[(y, x+1)] - vel.x[(y, x)] + vel.y[(y+1, x)] - vel.y[(y, x)]);
         }
     }
 }
 
 fn project_velocity(vel: &mut MacGrid2D<f64>, pressure: &Grid2D<f64>, timestep: f64) {
     let scale = timestep;
-    for x in 0 .. vel.dimension.0 {
-        for y in 0 .. vel.dimension.1 {
-            if x < pressure.dim().0 { vel.x[(x, y)] -= scale*pressure[(x, y)]; }
-            if x > 0 { vel.x[(x, y)] += scale*pressure[(x-1, y)]; }
-            if y < pressure.dim().1 { vel.y[(x, y)] -= scale*pressure[(x, y)]; }
-            if y > 0 { vel.y[(x, y)] += scale*pressure[(x, y-1)]; }
+    for y in 0 .. vel.dimension.0 {
+        for x in 0 .. vel.dimension.1 {
+            if x < pressure.dim().1 { vel.x[(y, x)] -= scale*pressure[(y, x)]; }
+            if x > 0 { vel.x[(y, x)] += scale*pressure[(y, x-1)]; }
+            if y < pressure.dim().0 { vel.y[(y, x)] -= scale*pressure[(y, x)]; }
+            if y > 0 { vel.y[(y, x)] += scale*pressure[(y-1, x)]; }
         }
     }
 
-    for y in 0 .. vel.dimension.1 {
-        vel.x[(0, y)] = 0.0;
-        vel.x[(vel.dimension.0, y)] = 0.0;
+    for y in 0 .. vel.dimension.0 {
+        vel.x[(y, 0)] = 0.0;
+        vel.x[(y, vel.dimension.1)] = 0.0;
     }
 
-    for x in 0 .. vel.dimension.0 {
-        vel.y[(x, 0)] = 0.0;
-        vel.y[(x, vel.dimension.1)] = 0.0;
+    for x in 0 .. vel.dimension.1 {
+        vel.y[(0, x)] = 0.0;
+        vel.y[(vel.dimension.0, x)] = 0.0;
     }
 }
 
@@ -184,14 +184,14 @@ fn apply_sparse_matrix(
     timestep: f64,
 ) {
     let scale = timestep;
-    for x in 0 .. src.dim().0 {
-        for y in 0 .. src.dim().1 {
-            dest[(x, y)] = {
-                let mut b = diag[(x, y)] * src[(x, y)];
-                if x > 0 { b += plus_x[(x-1, y)] * src[(x-1, y  )]; }
-                if y > 0 { b += plus_y[(x, y-1)] * src[(x  , y-1)]; }
-                if x < src.dim().0-1 { b += plus_x[(x, y)] * src[(x+1, y  )]; }
-                if y < src.dim().1-1 { b += plus_y[(x, y)] * src[(x  , y+1)]; }
+    for y in 0 .. src.dim().0 {
+        for x in 0 .. src.dim().1 {
+            dest[(y, x)] = {
+                let mut b = diag[(y, x)] * src[(y, x)];
+                if x > 0 { b += plus_x[(y  , x-1)] * src[(y  , x-1)]; }
+                if y > 0 { b += plus_y[(y-1, x  )] * src[(y-1, x  )]; }
+                if x < src.dim().1-1 { b += plus_x[(y, x)] * src[(y  , x+1)]; }
+                if y < src.dim().0-1 { b += plus_y[(y, x)] * src[(y+1, x  )]; }
                 b * scale
             };
         }
@@ -208,12 +208,12 @@ pub fn build_sparse_matrix(
     plus_x.fill(0.0);
     plus_y.fill(0.0);
 
-    for x in 0..diag.dim().0 {
-        for y in 0..diag.dim().1 {
-            if x > 0 { diag[(x, y)] += 1.0; }
-            if y > 0 { diag[(x, y)] += 1.0; }
-            if x < diag.dim().0-1 { diag[(x, y)] += 1.0; plus_x[(x, y)] -= 1.0; }
-            if y < diag.dim().1-1 { diag[(x, y)] += 1.0; plus_y[(x, y)] -= 1.0; }
+    for y in 0..diag.dim().0 {
+        for x in 0..diag.dim().1 {
+            if x > 0 { diag[(y, x)] += 1.0; }
+            if y > 0 { diag[(y, x)] += 1.0; }
+            if x < diag.dim().1-1 { diag[(y, x)] += 1.0; plus_x[(y, x)] -= 1.0; }
+            if y < diag.dim().0-1 { diag[(y, x)] += 1.0; plus_y[(y, x)] -= 1.0; }
         }
     }
 }
