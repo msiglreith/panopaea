@@ -1,36 +1,54 @@
 
 extern crate cgmath;
+#[macro_use]
 extern crate ndarray;
 
 use cgmath::BaseFloat;
 use ndarray::{arr1, ArrayView, ArrayViewMut, Array1, Ix1};
 
-fn fwt_1d(input: ArrayView<f64, Ix1>, outputs: &mut [ArrayViewMut<f64, Ix1>]) {
-    outputs[0].assign(&input);
+fn fwt_1d(input: ArrayView<f64, Ix1>, mut output: ArrayViewMut<f64, Ix1>, levels: usize, mut temp: ArrayViewMut<f64, Ix1>) {
+    // early out
+    if levels == 0 {
+        output.assign(&input);
+        return;
+    }
 
-    for n in 1..outputs.len() {
+    temp.assign(&input);
+
+    // output after decompositions:
+    // |-coarse n-|-detail n-|----detail n-1----|-------detail n-2-------| ..
+
+    let mut level_size = input.len();
+    for n in 0..levels {
         // TODO: generalize to all wavelets
-        let (details, coarser) = outputs.split_at_mut(n);
-        let detail = details.last_mut().unwrap();
-        let coarse = coarser.first_mut().unwrap();
+        // TODO: non-pow2 arrays
+        let half_size = level_size / 2;
 
-        for i in 0..coarse.len() {
-            coarse[i] = (detail[2*i] + detail[2*i+1]) / 2.0;
+        for i in 0..half_size {
+            output[i] = 
+                temp[2*i  ] * 0.7071067811865476 +
+                temp[2*i+1] * 0.7071067811865476;
         }
 
-        for i in 0..detail.len() {
-            detail[i] -= coarse[i/2];
+        for i in 0..half_size {
+            output[i+half_size] =
+               -temp[2*i  ] * 0.7071067811865476 +
+                temp[2*i+1] * 0.7071067811865476;
         }
     }
 }
 
+
+// Haar reconstruction
+// low-pass:  0.7071067811865476 0.7071067811865476
+// high-pass: 0.7071067811865476 0.7071067811865476
+
 fn main() {
     let input = arr1(&[12.0, 4.0, 6.0, 8.0, 4.0, 2.0, 5.0, 7.0]);
-    let mut level0 = Array1::zeros(input.len());
-    let mut level1 = Array1::zeros(input.len() / 2);
+    let mut decomposition = Array1::zeros(input.len());
+    let mut temp = Array1::zeros(input.len());
 
-    fwt_1d(input.view(), &mut [level0.view_mut(), level1.view_mut()]);
+    fwt_1d(input.view(), decomposition.view_mut(), 1, temp.view_mut());
 
-    println!("{:?}", level0);
-    println!("{:?}", level1);
+    println!("{:?}", decomposition);
 }
