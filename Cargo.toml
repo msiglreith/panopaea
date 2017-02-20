@@ -12,6 +12,7 @@ ndarray = "0.7.1"
 [dev-dependencies]
 panopaea-util = { path = "util" }
 image = "0.10.3"
+generic-array = "0.6"
 
 [workspace]
 members = ["util"]
