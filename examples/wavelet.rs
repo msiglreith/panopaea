@@ -9,9 +9,9 @@ extern crate generic_array;
 use image::GenericImage;
 
 use cgmath::BaseFloat;
-use ndarray::{arr1, ArrayView, ArrayViewMut, Array1, Array2, Axis, Ix1};
+use ndarray::{arr1, ArrayView, ArrayViewMut, Array1, Array2, Axis, Ix1, Ixs};
 use generic_array::ArrayLength;
-use generic_array::typenum::{U2};
+use generic_array::typenum::{U2, U6, Unsigned};
 
 pub trait Wavelet<T> {
     type N: ArrayLength<usize>;
@@ -22,9 +22,9 @@ pub trait Wavelet<T> {
 }
 
 // Haar wavelet
-static HAAR_UP_LOW:  &[f64; 2] = &[0.7071067811865476,  0.7071067811865476];
+static HAAR_UP_LOW: &[f64; 2] = &[0.7071067811865476, 0.7071067811865476];
 static HAAR_UP_HIGH: &[f64; 2] = &[0.7071067811865476, -0.7071067811865476];
-static HAAR_DOWN_LOW : &[f64; 2] = &[ 0.7071067811865476, 0.7071067811865476];
+static HAAR_DOWN_LOW: &[f64; 2] = &[0.7071067811865476, 0.7071067811865476];
 static HAAR_DOWN_HIGH: &[f64; 2] = &[-0.7071067811865476, 0.7071067811865476];
 
 pub struct Haar;
@@ -40,26 +40,62 @@ impl Wavelet<f64> for Haar {
     fn coeff_down_high() -> &'static [f64] { HAAR_DOWN_HIGH }
 }
 
+// Biorthogonal 1.3
+static BIOR_1_3_UP_LOW: &[f64; 6] = &[0.0, 0.0, 0.7071067811865476, 0.7071067811865476, 0.0, 0.0];
+static BIOR_1_3_UP_HIGH: &[f64; 6] = &[-0.08838834764831845, -0.08838834764831845, 0.7071067811865476, -0.7071067811865476, 0.08838834764831845, 0.08838834764831845];
+static BIOR_1_3_DOWN_LOW: &[f64; 6] = &[-0.08838834764831845, 0.08838834764831845, 0.7071067811865476, 0.7071067811865476, 0.08838834764831845, -0.08838834764831845];
+static BIOR_1_3_DOWN_HIGH: &[f64; 6] = &[0.0, 0.0, -0.7071067811865476, 0.7071067811865476, 0.0, 0.0];
+
+pub struct Bior13;
+impl Wavelet<f64> for Bior13 {
+    type N = U6;
+    #[inline]
+    fn coeff_up_low() -> &'static [f64] { BIOR_1_3_UP_LOW }
+    #[inline]
+    fn coeff_up_high() -> &'static [f64] { BIOR_1_3_UP_HIGH }
+    #[inline]
+    fn coeff_down_low() -> &'static [f64] { BIOR_1_3_DOWN_LOW }
+    #[inline]
+    fn coeff_down_high() -> &'static [f64] { BIOR_1_3_DOWN_HIGH }
+}
+
+// Array sampler
+pub trait Sampler<T: BaseFloat> {
+    fn fetch(input: ArrayView<T, Ix1>, idx: Ixs) -> T;
+}
+
+pub struct ZeroSampler;
+impl Sampler<f64> for ZeroSampler {
+    fn fetch(input: ArrayView<f64, Ix1>, idx: Ixs) -> f64 {
+        if idx >= 0 && idx < input.len() as isize {
+            input[idx as usize]
+        } else {
+            0.0
+        }
+    }
+}
 
 #[inline]
 fn down_convolution(input: ArrayView<f64, Ix1>, mut output: ArrayViewMut<f64, Ix1>) {
-    let half_size = output.len() / 2;
+    let half_size = (output.len() / 2) as isize;
 
-    let low_pass = Haar::coeff_down_low();
-    let high_pass = Haar::coeff_down_high();
+    let filter_size = <Bior13 as Wavelet<f64>>::N::to_isize();
+    let filter_half = filter_size / 2;
+    let low_pass = Bior13::coeff_down_low();
+    let high_pass = Bior13::coeff_down_high();
 
     // low-pass
     for i in 0..half_size {
-        output[i] =
-            input[2*i  ] * low_pass[0] +
-            input[2*i+1] * low_pass[1];
+        output[i as usize] = (0..filter_size).fold(0.0, |acc, f| {
+            ZeroSampler::fetch(input, 2*i+f-filter_half+1) * low_pass[f as usize] + acc
+        });
     }
 
     // high pass
     for i in 0..half_size {
-        output[i+half_size] =
-            input[2*i  ] * high_pass[0] +
-            input[2*i+1] * high_pass[1];
+        output[(i+half_size) as usize] = (0..filter_size).fold(0.0, |acc, f| {
+            ZeroSampler::fetch(input, 2*i+f-filter_half+1) * high_pass[f as usize] + acc
+        });
     }
 }
 
