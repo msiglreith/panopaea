@@ -87,15 +87,46 @@ fn down_convolution(input: ArrayView<f64, Ix1>, mut output: ArrayViewMut<f64, Ix
     // low-pass
     for i in 0..half_size {
         output[i as usize] = (0..filter_size).fold(0.0, |acc, f| {
-            ZeroSampler::fetch(input, 2*i+f-filter_half+1) * low_pass[f as usize] + acc
+            let input_src = 2*i+f-filter_half+1;
+            let filter_src = (filter_size-1-f) as usize;
+            ZeroSampler::fetch(input, input_src) * low_pass[filter_src] + acc
         });
     }
 
     // high pass
     for i in 0..half_size {
         output[(i+half_size) as usize] = (0..filter_size).fold(0.0, |acc, f| {
-            ZeroSampler::fetch(input, 2*i+f-filter_half+1) * high_pass[f as usize] + acc
+            let input_src = 2*i+f-filter_half+1;
+            let filter_src = (filter_size-1-f) as usize;
+            ZeroSampler::fetch(input, input_src) * high_pass[filter_src] + acc
         });
+    }
+}
+
+#[inline]
+fn up_convolution(input: ArrayView<f64, Ix1>, mut output: ArrayViewMut<f64, Ix1>) {
+    let half_size = (output.len() / 2) as isize;
+
+    let filter_size = <Bior13 as Wavelet<f64>>::N::to_isize();
+    let filter_half = filter_size / 2;
+    let low_pass = Bior13::coeff_up_low();
+    let high_pass = Bior13::coeff_up_high();
+
+    // Index transformation:
+    //  for i in 0..half
+    //      for f in 0..filter
+    //          dest[(2*i+f)%len] += in[i] * low[i] + in[i+half] * high[i];
+    //
+    //
+    output.fill(0.0);
+    for i in 0..half_size {
+        for f in 0..filter_size {
+            let idx_out = (2 * i + f) % output.len() as isize;
+            let filter_src = f as usize;
+            output[idx_out as usize] +=
+                ZeroSampler::fetch(input, i) * low_pass[filter_src] +
+                ZeroSampler::fetch(input, i+half_size) * high_pass[filter_src];
+        }  
     }
 }
 
@@ -146,6 +177,7 @@ fn main() {
     {
         let lena = image::open("examples/data/lena.png").unwrap().flipv();
         let mut output = Array2::from_elem((lena.height() as usize, lena.width() as usize), 0.0);
+        let mut reconstructed = Array2::from_elem((lena.height() as usize, lena.width() as usize), 0.0);
 
         for y in 0..lena.height() {
             let row = (0..lena.width()).into_iter().map(|x| {
@@ -154,6 +186,7 @@ fn main() {
             let input = arr1(&row);
 
             down_convolution(input.view(), output.subview_mut(Axis(0), y as usize));
+            
         }
 
         for x in 0..lena.width() {
@@ -163,6 +196,19 @@ fn main() {
             let input = arr1(&col);
 
             down_convolution(input.view(), output.subview_mut(Axis(1), x as usize));
+        }
+
+        for x in 0..lena.width() {
+            up_convolution(output.subview(Axis(1), x as usize), reconstructed.subview_mut(Axis(1), x as usize));
+        }
+
+        for y in 0..lena.height() {
+            let row = (0..lena.width()).into_iter().map(|x| {
+                reconstructed[(y as usize, x as usize)]
+            }).collect::<Vec<_>>();
+            let input = arr1(&row);
+
+            up_convolution(input.view(), reconstructed.subview_mut(Axis(0), y as usize));
         }
 
         let img_data = {
@@ -184,5 +230,25 @@ fn main() {
             format!("lena_fwt.png"),
             &img_data,
             output.dim());
+
+        let img_data = {
+            let mut data = Vec::new();
+            for y in 0 .. reconstructed.dim().0 {
+                for x in 0 .. reconstructed.dim().1 {
+                    let val = &reconstructed[(y, x)];
+                    data.push([
+                        util::imgproc::transfer(val, 0.0, 255.0),
+                        util::imgproc::transfer(val, 0.0, 255.0),
+                        util::imgproc::transfer(val, 0.0, 255.0),
+                    ]);
+                }
+            }
+            data
+        };
+
+        util::png::export(
+            format!("lena_ifwt.png"),
+            &img_data,
+            reconstructed.dim());
     }
 }
