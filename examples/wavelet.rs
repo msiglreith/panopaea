@@ -9,7 +9,7 @@ extern crate generic_array;
 use image::GenericImage;
 
 use cgmath::BaseFloat;
-use ndarray::{arr1, ArrayView, ArrayViewMut, Array1, Array2, Axis, Ix1, Ixs};
+use ndarray::{arr1, ArrayView, ArrayViewMut, Array1, Array2, Axis, Ix1, Ix2, Ixs};
 use generic_array::ArrayLength;
 use generic_array::typenum::{U2, U6, Unsigned};
 
@@ -131,30 +131,24 @@ fn up_convolution<W: Wavelet<f64>>(input: ArrayView<f64, Ix1>, mut output: Array
     }
 }
 
-fn fwt_1d<W: Wavelet<f64>>(input: ArrayView<f64, Ix1>, mut output: ArrayViewMut<f64, Ix1>, levels: usize, mut temp: ArrayViewMut<f64, Ix1>) {
+fn fwt_1d<W: Wavelet<f64>>(mut output: ArrayViewMut<f64, Ix1>, levels: usize, mut temp: ArrayViewMut<f64, Ix1>) {
     // early out
     if levels == 0 {
-        output.assign(&input);
         return;
     }
 
-    temp.assign(&input);
+    let mut level_size = output.dim();
 
     // output after decompositions:
     // |-coarse n-|-detail n-|----detail n-1----|-------detail n-2-------| ..
-
-    let mut level_size = input.len();
     for n in 0..levels {
-        let half_size = level_size / 2;
+        let mut src = temp.slice_mut(s![..level_size as isize]);
+        let mut dest = output.slice_mut(s![..level_size as isize]);
+        src.assign(&dest);
 
-        down_convolution::<W>(temp.view(), output.view_mut());
+        down_convolution::<W>(src.view(), dest.view_mut());
 
-        // copy coarse data back to temp buffer
-        for i in 0..half_size {
-            temp[i] = output[i];
-        }
-
-        level_size = half_size;
+        level_size = level_size / 2;
     }
 }
 
@@ -162,13 +156,42 @@ fn ifwt_1d(input: ArrayView<f64, Ix1>, mut output: ArrayViewMut<f64, Ix1>, level
     // TODO:
 }
 
+fn fwt_2d_isotropic<W: Wavelet<f64>>(mut output: ArrayViewMut<f64, Ix2>, levels: usize, mut temp: ArrayViewMut<f64, Ix2>) {
+    // early out
+    if levels == 0 {
+        return;
+    }
+
+    let mut level_size = output.dim();
+
+    for n in 0..levels {
+        let coarse_slice = s![..level_size.0 as isize, ..level_size.1 as isize];
+        let mut src = temp.slice_mut(coarse_slice);
+        let mut dest = output.slice_mut(coarse_slice);
+        src.assign(&dest);
+
+        for i in 0..level_size.0 {
+            down_convolution::<W>(
+                src.subview(Axis(0), i as usize),
+                dest.subview_mut(Axis(0), i as usize));
+        }
+        src.assign(&dest);
+        for i in 0..level_size.1 {
+            down_convolution::<W>(
+                src.subview(Axis(1), i as usize),
+                dest.subview_mut(Axis(1), i as usize));
+        }
+
+        level_size = (level_size.0 / 2, level_size.1 / 2);
+    }
+}
+
 fn main() {
     {
-        let input = arr1(&[12.0, 4.0, 6.0, 8.0, 4.0, 2.0, 5.0, 7.0]);
-        let mut decomposition = Array1::zeros(input.len());
-        let mut temp = Array1::zeros(input.len());
+        let mut decomposition = arr1(&[12.0, 4.0, 6.0, 8.0, 4.0, 2.0, 5.0, 7.0]);
+        let mut temp = Array1::zeros(decomposition.len());
 
-        fwt_1d::<Haar>(input.view(), decomposition.view_mut(), 2, temp.view_mut());
+        fwt_1d::<Haar>(decomposition.view_mut(), 2, temp.view_mut());
 
         println!("{:?}", decomposition);  
     }
@@ -184,21 +207,11 @@ fn main() {
         for y in 0..lena.height() {
             for x in 0..lena.width() {
                 input[(y as usize, x as usize)] = lena.get_pixel(x, y).data[0] as f64;
+                decomposed[(y as usize, x as usize)] = lena.get_pixel(x, y).data[0] as f64;
             }
         }
 
-        // one step 2d fwt
-        for i in 0..input.dim().0 {
-            down_convolution::<Bior13>(
-                input.subview(Axis(0), i as usize),
-                decomposed.subview_mut(Axis(0), i as usize));
-        }
-        input.assign(&decomposed);
-        for i in 0..input.dim().1 {
-            down_convolution::<Bior13>(
-                input.subview(Axis(1), i as usize),
-                decomposed.subview_mut(Axis(1), i as usize));
-        }
+        fwt_2d_isotropic::<Bior13>(decomposed.view_mut(), 2, input.view_mut());
 
         let img_data = {
             let mut data = Vec::new();
@@ -206,9 +219,9 @@ fn main() {
                 for x in 0 .. decomposed.dim().1 {
                     let val = &decomposed[(y, x)];
                     data.push([
-                        util::imgproc::transfer(val, -255.0, 255.0),
-                        util::imgproc::transfer(val, -255.0, 255.0),
-                        util::imgproc::transfer(val, -255.0, 255.0),
+                        util::imgproc::transfer(&val.abs(), 0.0, 4.0*255.0),
+                        util::imgproc::transfer(&val.abs(), 0.0, 4.0*255.0),
+                        util::imgproc::transfer(&val.abs(), 0.0, 4.0*255.0),
                     ]);
                 }
             }
@@ -218,7 +231,8 @@ fn main() {
         util::png::export(
             format!("lena_fwt.png"),
             &img_data,
-            decomposed.dim());
+            (decomposed.dim().1,
+             decomposed.dim().0));
 
         //one step 2d ifwt
         for i in 0..input.dim().0 {
@@ -251,6 +265,7 @@ fn main() {
         util::png::export(
             format!("lena_ifwt.png"),
             &img_data,
-            reconstructed.dim());
+            (reconstructed.dim().1,
+             reconstructed.dim().0));
     }
 }
