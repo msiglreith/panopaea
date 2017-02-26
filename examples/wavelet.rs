@@ -132,16 +132,12 @@ fn up_convolution<W: Wavelet<f64>>(input: ArrayView<f64, Ix1>, mut output: Array
 }
 
 fn fwt_1d<W: Wavelet<f64>>(mut output: ArrayViewMut<f64, Ix1>, levels: usize, mut temp: ArrayViewMut<f64, Ix1>) {
-    // early out
-    if levels == 0 {
-        return;
-    }
-
     let mut level_size = output.dim();
 
     // output after decompositions:
     // |-coarse n-|-detail n-|----detail n-1----|-------detail n-2-------| ..
     for n in 0..levels {
+        let coarse_slice = s![..level_size as isize];
         let mut src = temp.slice_mut(s![..level_size as isize]);
         let mut dest = output.slice_mut(s![..level_size as isize]);
         src.assign(&dest);
@@ -157,11 +153,6 @@ fn ifwt_1d(input: ArrayView<f64, Ix1>, mut output: ArrayViewMut<f64, Ix1>, level
 }
 
 fn fwt_2d_isotropic<W: Wavelet<f64>>(mut output: ArrayViewMut<f64, Ix2>, levels: usize, mut temp: ArrayViewMut<f64, Ix2>) {
-    // early out
-    if levels == 0 {
-        return;
-    }
-
     let mut level_size = output.dim();
 
     for n in 0..levels {
@@ -186,6 +177,36 @@ fn fwt_2d_isotropic<W: Wavelet<f64>>(mut output: ArrayViewMut<f64, Ix2>, levels:
     }
 }
 
+fn fwt_2d_anisotropic<W: Wavelet<f64>>(mut output: ArrayViewMut<f64, Ix2>, levels: usize, mut temp: ArrayViewMut<f64, Ix2>) {
+    let mut level_size = output.dim();
+    for _ in 0..levels {
+        let coarse_slice = s![..level_size.0 as isize, ..level_size.1 as isize];
+        let mut src = temp.slice_mut(coarse_slice);
+        let mut dest = output.slice_mut(coarse_slice);
+        src.assign(&dest);
+        for i in 0..level_size.0 {
+            down_convolution::<W>(
+                src.subview(Axis(0), i as usize),
+                dest.subview_mut(Axis(0), i as usize));
+        }
+        level_size.1 /= 2;
+    }
+
+    level_size = output.dim();
+    for _ in 0..levels {
+        let coarse_slice = s![..level_size.0 as isize, ..level_size.1 as isize];
+        let mut src = temp.slice_mut(coarse_slice);
+        let mut dest = output.slice_mut(coarse_slice);
+        src.assign(&dest);
+        for i in 0..level_size.1 {
+            down_convolution::<W>(
+                src.subview(Axis(1), i as usize),
+                dest.subview_mut(Axis(1), i as usize));
+        }
+        level_size.0 /= 2;
+    }
+}
+
 fn main() {
     {
         let mut decomposition = arr1(&[12.0, 4.0, 6.0, 8.0, 4.0, 2.0, 5.0, 7.0]);
@@ -193,7 +214,14 @@ fn main() {
 
         fwt_1d::<Haar>(decomposition.view_mut(), 2, temp.view_mut());
 
-        println!("{:?}", decomposition);  
+        println!("{:?}", decomposition);
+
+        let mut decomposition = arr1(&[1.0, 2.0, 3.0, 4.0]);
+        let mut temp = Array1::zeros(decomposition.len());
+
+        fwt_1d::<Haar>(decomposition.view_mut(), 1, temp.view_mut());
+
+        println!("{:?}", decomposition);
     }
     
 
@@ -211,7 +239,7 @@ fn main() {
             }
         }
 
-        fwt_2d_isotropic::<Bior13>(decomposed.view_mut(), 2, input.view_mut());
+        fwt_2d_anisotropic::<Bior13>(decomposed.view_mut(), 2, input.view_mut());
 
         let img_data = {
             let mut data = Vec::new();
@@ -219,9 +247,9 @@ fn main() {
                 for x in 0 .. decomposed.dim().1 {
                     let val = &decomposed[(y, x)];
                     data.push([
-                        util::imgproc::transfer(&val.abs(), 0.0, 4.0*255.0),
-                        util::imgproc::transfer(&val.abs(), 0.0, 4.0*255.0),
-                        util::imgproc::transfer(&val.abs(), 0.0, 4.0*255.0),
+                        util::imgproc::transfer(&val.abs(), 0.0, 1.0*255.0),
+                        util::imgproc::transfer(&val.abs(), 0.0, 1.0*255.0),
+                        util::imgproc::transfer(&val.abs(), 0.0, 1.0*255.0),
                     ]);
                 }
             }
