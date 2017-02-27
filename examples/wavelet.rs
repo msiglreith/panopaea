@@ -3,6 +3,7 @@ extern crate cgmath;
 #[macro_use]
 extern crate ndarray;
 extern crate image;
+extern crate panopaea;
 extern crate panopaea_util as util;
 extern crate generic_array;
 
@@ -10,54 +11,9 @@ use image::GenericImage;
 
 use cgmath::BaseFloat;
 use ndarray::{arr1, ArrayView, ArrayViewMut, Array1, Array2, Axis, Ix1, Ix2, Ixs};
-use generic_array::ArrayLength;
-use generic_array::typenum::{U2, U6, Unsigned};
+use generic_array::typenum::{Unsigned};
 
-pub trait Wavelet<T> {
-    type N: ArrayLength<usize>;
-    fn coeff_up_low() -> &'static [T];
-    fn coeff_up_high() -> &'static [T];
-    fn coeff_down_low() -> &'static [T];
-    fn coeff_down_high() -> &'static [T];
-}
-
-// Haar wavelet
-static HAAR_UP_LOW: &[f64; 2] = &[0.7071067811865476, 0.7071067811865476];
-static HAAR_UP_HIGH: &[f64; 2] = &[0.7071067811865476, -0.7071067811865476];
-static HAAR_DOWN_LOW: &[f64; 2] = &[0.7071067811865476, 0.7071067811865476];
-static HAAR_DOWN_HIGH: &[f64; 2] = &[-0.7071067811865476, 0.7071067811865476];
-
-pub struct Haar;
-impl Wavelet<f64> for Haar {
-    type N = U2;
-    #[inline]
-    fn coeff_up_low() -> &'static [f64] { HAAR_UP_LOW }
-    #[inline]
-    fn coeff_up_high() -> &'static [f64] { HAAR_UP_HIGH }
-    #[inline]
-    fn coeff_down_low() -> &'static [f64] { HAAR_DOWN_LOW }
-    #[inline]
-    fn coeff_down_high() -> &'static [f64] { HAAR_DOWN_HIGH }
-}
-
-// Biorthogonal 1.3
-static BIOR_1_3_UP_LOW: &[f64; 6] = &[0.0, 0.0, 0.7071067811865476, 0.7071067811865476, 0.0, 0.0];
-static BIOR_1_3_UP_HIGH: &[f64; 6] = &[-0.08838834764831845, -0.08838834764831845, 0.7071067811865476, -0.7071067811865476, 0.08838834764831845, 0.08838834764831845];
-static BIOR_1_3_DOWN_LOW: &[f64; 6] = &[-0.08838834764831845, 0.08838834764831845, 0.7071067811865476, 0.7071067811865476, 0.08838834764831845, -0.08838834764831845];
-static BIOR_1_3_DOWN_HIGH: &[f64; 6] = &[0.0, 0.0, -0.7071067811865476, 0.7071067811865476, 0.0, 0.0];
-
-pub struct Bior13;
-impl Wavelet<f64> for Bior13 {
-    type N = U6;
-    #[inline]
-    fn coeff_up_low() -> &'static [f64] { BIOR_1_3_UP_LOW }
-    #[inline]
-    fn coeff_up_high() -> &'static [f64] { BIOR_1_3_UP_HIGH }
-    #[inline]
-    fn coeff_down_low() -> &'static [f64] { BIOR_1_3_DOWN_LOW }
-    #[inline]
-    fn coeff_down_high() -> &'static [f64] { BIOR_1_3_DOWN_HIGH }
-}
+use panopaea::wavelet::{haar, spline, Wavelet};
 
 // Array sampler
 pub trait Sampler<T: BaseFloat> {
@@ -212,14 +168,14 @@ fn main() {
         let mut decomposition = arr1(&[12.0, 4.0, 6.0, 8.0, 4.0, 2.0, 5.0, 7.0]);
         let mut temp = Array1::zeros(decomposition.len());
 
-        fwt_1d::<Haar>(decomposition.view_mut(), 2, temp.view_mut());
+        fwt_1d::<haar::Haar>(decomposition.view_mut(), 2, temp.view_mut());
 
         println!("{:?}", decomposition);
 
         let mut decomposition = arr1(&[1.0, 2.0, 3.0, 4.0]);
         let mut temp = Array1::zeros(decomposition.len());
 
-        fwt_1d::<Haar>(decomposition.view_mut(), 1, temp.view_mut());
+        fwt_1d::<haar::Haar>(decomposition.view_mut(), 1, temp.view_mut());
 
         println!("{:?}", decomposition);
     }
@@ -239,7 +195,7 @@ fn main() {
             }
         }
 
-        fwt_2d_anisotropic::<Bior13>(decomposed.view_mut(), 2, input.view_mut());
+        fwt_2d_anisotropic::<spline::Bior13>(decomposed.view_mut(), 2, input.view_mut());
 
         let img_data = {
             let mut data = Vec::new();
@@ -264,13 +220,13 @@ fn main() {
 
         //one step 2d ifwt
         for i in 0..input.dim().0 {
-            up_convolution::<Bior13>(
+            up_convolution::<spline::Bior13>(
                 decomposed.subview(Axis(0), i as usize),
                 reconstructed.subview_mut(Axis(0), i as usize));
         }
         decomposed.assign(&reconstructed);
         for i in 0..input.dim().1 {
-            up_convolution::<Bior13>(
+            up_convolution::<spline::Bior13>(
                 decomposed.subview(Axis(1), i as usize),
                 reconstructed.subview_mut(Axis(1), i as usize));
         }
