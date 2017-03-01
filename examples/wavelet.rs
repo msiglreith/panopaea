@@ -68,7 +68,7 @@ fn up_convolution<W: Wavelet<f64>>(input: ArrayView<f64, Ix1>, mut output: Array
     let low_pass = W::coeff_up_low();
     let high_pass = W::coeff_up_high();
 
-    // TODO:
+    // TODO: FIXME:
     // Index transformation:
     //  for i in 0..half
     //      for f in 0..filter
@@ -78,7 +78,14 @@ fn up_convolution<W: Wavelet<f64>>(input: ArrayView<f64, Ix1>, mut output: Array
     output.fill(0.0);
     for i in 0..half_size {
         for f in 0..filter_size {
-            let idx_out = (2 * i + f) % output.len() as isize;
+            let idx_out = {
+                let idx = (2 * i + f - filter_half + 1);
+                if idx < 0 {
+                    (idx + output.len() as isize) % output.len() as isize
+                } else {
+                    idx % output.len() as isize
+                }
+            };
             let filter_src = f as usize;
             output[idx_out as usize] +=
                 ZeroSampler::fetch(input, i) * low_pass[filter_src] +
@@ -92,20 +99,30 @@ fn fwt_1d<W: Wavelet<f64>>(mut output: ArrayViewMut<f64, Ix1>, levels: usize, mu
 
     // output after decompositions:
     // |-coarse n-|-detail n-|----detail n-1----|-------detail n-2-------| ..
-    for n in 0..levels {
+    for _ in 0..levels {
         let coarse_slice = s![..level_size as isize];
-        let mut src = temp.slice_mut(s![..level_size as isize]);
-        let mut dest = output.slice_mut(s![..level_size as isize]);
+        let mut src = temp.slice_mut(coarse_slice);
+        let mut dest = output.slice_mut(coarse_slice);
         src.assign(&dest);
 
         down_convolution::<W>(src.view(), dest.view_mut());
 
-        level_size = level_size / 2;
+        level_size /= 2;
     }
 }
 
-fn ifwt_1d(input: ArrayView<f64, Ix1>, mut output: ArrayViewMut<f64, Ix1>, levels: usize) {
-    // TODO:
+fn ifwt_1d<W: Wavelet<f64>>(mut output: ArrayViewMut<f64, Ix1>, levels: usize, mut temp: ArrayViewMut<f64, Ix1>) {
+    let mut level_size = output.dim() / 2usize.pow(levels as u32);
+
+    for _ in 0..levels {
+        level_size *= 2;
+        let slice = s![..level_size as isize];
+        let mut src = temp.slice_mut(slice);
+        let mut dest = output.slice_mut(slice);
+        src.assign(&dest);
+
+        up_convolution::<W>(src.view(), dest.view_mut());
+    }
 }
 
 fn fwt_2d_isotropic<W: Wavelet<f64>>(mut output: ArrayViewMut<f64, Ix2>, levels: usize, mut temp: ArrayViewMut<f64, Ix2>) {
@@ -134,8 +151,45 @@ fn fwt_2d_isotropic<W: Wavelet<f64>>(mut output: ArrayViewMut<f64, Ix2>, levels:
 
         level_size = (level_size.0 / 2, level_size.1 / 2);
     }
+
+    println!("{:?}", output[(2, 447)]);
 }
 
+fn ifwt_2d_isotropic<W: Wavelet<f64>>(mut output: ArrayViewMut<f64, Ix2>, levels: usize, mut temp: ArrayViewMut<f64, Ix2>) {
+    let level_pow = 2usize.pow(levels as u32);
+    let mut level_size = output.dim();
+    level_size = (level_size.0 / level_pow, level_size.1 / level_pow);
+
+    println!("{:?}", level_size);
+
+    for _ in 0..levels {
+        level_size = (level_size.0 * 2, level_size.1 * 2);
+        let slice = s![..level_size.0 as isize, ..level_size.1 as isize];
+        let mut src = temp.slice_mut(slice);
+        let mut dest = output.slice_mut(slice);
+        src.assign(&dest);
+
+        println!("{:?}", (src.dim(), dest.dim()));
+
+        // y direction
+        for i in 0..level_size.1 {
+            up_convolution::<W>(
+                src.subview(Axis(1), i as usize),
+                dest.subview_mut(Axis(1), i as usize));
+        }
+
+        src.assign(&dest);
+
+        // x direction
+        for i in 0..level_size.0 {
+            up_convolution::<W>(
+                src.subview(Axis(0), i as usize),
+                dest.subview_mut(Axis(0), i as usize));
+        }
+    }
+
+    println!("{:?}", output[(2, 447)]);
+}
 fn fwt_2d_separate_isotropic<Wx, Wy>(mut output: ArrayViewMut<f64, Ix2>, levels: usize, mut temp: ArrayViewMut<f64, Ix2>)
     where Wx: Wavelet<f64>, Wy: Wavelet<f64> 
 {
@@ -204,7 +258,11 @@ fn main() {
         let mut decomposition = arr1(&[12.0, 4.0, 6.0, 8.0, 4.0, 2.0, 5.0, 7.0]);
         let mut temp = Array1::zeros(decomposition.len());
 
-        fwt_1d::<haar::Haar>(decomposition.view_mut(), 2, temp.view_mut());
+        fwt_1d::<spline::Bior22>(decomposition.view_mut(), 2, temp.view_mut());
+
+        println!("{:?}", decomposition);
+
+        ifwt_1d::<spline::Bior22>(decomposition.view_mut(), 2, temp.view_mut());
 
         println!("{:?}", decomposition);
 
@@ -231,7 +289,7 @@ fn main() {
             }
         }
 
-        fwt_2d_separate_isotropic::<spline::Bior31, spline::Bior22>(decomposed.view_mut(), 2, input.view_mut());
+        fwt_2d_isotropic::<spline::Bior22>(decomposed.view_mut(), 3, input.view_mut());
 
         let img_data = {
             let mut data = Vec::new();
@@ -239,9 +297,9 @@ fn main() {
                 for x in 0 .. decomposed.dim().1 {
                     let val = &decomposed[(y, x)];
                     data.push([
-                        util::imgproc::transfer(&val.abs(), 0.0, 1.0*255.0),
-                        util::imgproc::transfer(&val.abs(), 0.0, 1.0*255.0),
-                        util::imgproc::transfer(&val.abs(), 0.0, 1.0*255.0),
+                        util::imgproc::transfer(val, 0.0, 255.0),
+                        util::imgproc::transfer(val, 0.0, 255.0),
+                        util::imgproc::transfer(val, 0.0, 255.0),
                     ]);
                 }
             }
@@ -254,6 +312,9 @@ fn main() {
             (decomposed.dim().1,
              decomposed.dim().0));
 
+        ifwt_2d_isotropic::<spline::Bior22>(decomposed.view_mut(), 3, input.view_mut());
+
+        /*
         //one step 2d ifwt
         for i in 0..input.dim().0 {
             up_convolution::<spline::Bior13>(
@@ -266,12 +327,13 @@ fn main() {
                 decomposed.subview(Axis(1), i as usize),
                 reconstructed.subview_mut(Axis(1), i as usize));
         }
+        */
 
         let img_data = {
             let mut data = Vec::new();
-            for y in 0 .. reconstructed.dim().0 {
-                for x in 0 .. reconstructed.dim().1 {
-                    let val = &reconstructed[(y, x)];
+            for y in 0 .. decomposed.dim().0 {
+                for x in 0 .. decomposed.dim().1 {
+                    let val = &decomposed[(y, x)];
                     data.push([
                         util::imgproc::transfer(val, 0.0, 255.0),
                         util::imgproc::transfer(val, 0.0, 255.0),
@@ -285,7 +347,7 @@ fn main() {
         util::png::export(
             format!("lena_ifwt.png"),
             &img_data,
-            (reconstructed.dim().1,
-             reconstructed.dim().0));
+            (decomposed.dim().1,
+             decomposed.dim().0));
     }
 }
