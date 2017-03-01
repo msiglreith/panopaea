@@ -151,16 +151,12 @@ fn fwt_2d_isotropic<W: Wavelet<f64>>(mut output: ArrayViewMut<f64, Ix2>, levels:
 
         level_size = (level_size.0 / 2, level_size.1 / 2);
     }
-
-    println!("{:?}", output[(2, 447)]);
 }
 
 fn ifwt_2d_isotropic<W: Wavelet<f64>>(mut output: ArrayViewMut<f64, Ix2>, levels: usize, mut temp: ArrayViewMut<f64, Ix2>) {
     let level_pow = 2usize.pow(levels as u32);
     let mut level_size = output.dim();
     level_size = (level_size.0 / level_pow, level_size.1 / level_pow);
-
-    println!("{:?}", level_size);
 
     for _ in 0..levels {
         level_size = (level_size.0 * 2, level_size.1 * 2);
@@ -187,9 +183,8 @@ fn ifwt_2d_isotropic<W: Wavelet<f64>>(mut output: ArrayViewMut<f64, Ix2>, levels
                 dest.subview_mut(Axis(0), i as usize));
         }
     }
-
-    println!("{:?}", output[(2, 447)]);
 }
+
 fn fwt_2d_separate_isotropic<Wx, Wy>(mut output: ArrayViewMut<f64, Ix2>, levels: usize, mut temp: ArrayViewMut<f64, Ix2>)
     where Wx: Wavelet<f64>, Wy: Wavelet<f64> 
 {
@@ -220,6 +215,39 @@ fn fwt_2d_separate_isotropic<Wx, Wy>(mut output: ArrayViewMut<f64, Ix2>, levels:
     }
 }
 
+fn ifwt_2d_separate_isotropic<Wx, Wy>(mut output: ArrayViewMut<f64, Ix2>, levels: usize, mut temp: ArrayViewMut<f64, Ix2>)
+    where Wx: Wavelet<f64>, Wy: Wavelet<f64>
+{
+    let level_pow = 2usize.pow(levels as u32);
+    let mut level_size = output.dim();
+    level_size = (level_size.0 / level_pow, level_size.1 / level_pow);
+
+    for _ in 0..levels {
+        level_size = (level_size.0 * 2, level_size.1 * 2);
+        let slice = s![..level_size.0 as isize, ..level_size.1 as isize];
+        let mut src = temp.slice_mut(slice);
+        let mut dest = output.slice_mut(slice);
+        src.assign(&dest);
+
+        println!("{:?}", (src.dim(), dest.dim()));
+
+        // y direction
+        for i in 0..level_size.1 {
+            up_convolution::<Wx>(
+                src.subview(Axis(0), i as usize),
+                dest.subview_mut(Axis(0), i as usize));
+        }
+
+        src.assign(&dest);
+
+        // x direction
+        for i in 0..level_size.0 {
+            up_convolution::<Wy>(
+                src.subview(Axis(1), i as usize),
+                dest.subview_mut(Axis(1), i as usize));
+        }
+    }
+}
 
 fn fwt_2d_anisotropic<W: Wavelet<f64>>(mut output: ArrayViewMut<f64, Ix2>, levels: usize, mut temp: ArrayViewMut<f64, Ix2>) {
     // x direction
@@ -289,7 +317,7 @@ fn main() {
             }
         }
 
-        fwt_2d_isotropic::<spline::Bior22>(decomposed.view_mut(), 3, input.view_mut());
+        fwt_2d_separate_isotropic::<spline::Bior31, spline::Bior31>(decomposed.view_mut(), 1, input.view_mut());
 
         let img_data = {
             let mut data = Vec::new();
@@ -312,22 +340,7 @@ fn main() {
             (decomposed.dim().1,
              decomposed.dim().0));
 
-        ifwt_2d_isotropic::<spline::Bior22>(decomposed.view_mut(), 3, input.view_mut());
-
-        /*
-        //one step 2d ifwt
-        for i in 0..input.dim().0 {
-            up_convolution::<spline::Bior13>(
-                decomposed.subview(Axis(0), i as usize),
-                reconstructed.subview_mut(Axis(0), i as usize));
-        }
-        decomposed.assign(&reconstructed);
-        for i in 0..input.dim().1 {
-            up_convolution::<spline::Bior13>(
-                decomposed.subview(Axis(1), i as usize),
-                reconstructed.subview_mut(Axis(1), i as usize));
-        }
-        */
+        ifwt_2d_separate_isotropic::<spline::Bior31, spline::Bior31>(decomposed.view_mut(), 1, input.view_mut());
 
         let img_data = {
             let mut data = Vec::new();
