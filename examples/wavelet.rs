@@ -10,7 +10,7 @@ extern crate generic_array;
 use image::GenericImage;
 
 use cgmath::BaseFloat;
-use ndarray::{arr1, ArrayView, ArrayViewMut, Array1, Array2, Axis, Ix1, Ix2, Ixs};
+use ndarray::{arr1, ArrayView, ArrayViewMut, Array1, Array2, Axis, Ix1, Ix2, Ix, Ixs};
 use generic_array::typenum::{Unsigned};
 
 use panopaea::wavelet::{haar, spline, Wavelet};
@@ -278,6 +278,61 @@ fn fwt_2d_anisotropic<W: Wavelet<f64>>(mut output: ArrayViewMut<f64, Ix2>, level
                 dest.subview_mut(Axis(1), i as usize));
         }
         level_size.0 /= 2;
+    }
+}
+
+fn div_coeff_2d(levels: usize,
+    src_vx: ArrayView<f64, Ix2>, mut dst_vx: ArrayViewMut<f64, Ix2>,
+    src_vy: ArrayView<f64, Ix2>, mut dst_vy: ArrayViewMut<f64, Ix2>)
+{
+    debug_assert!(src_vx.dim() == dest_vx.dim(),
+        "Input arrays differ in dimension (vx: {:?}, vy: {:?})",
+        src_vx.dim(), src_vx.dim());
+    debug_assert!(src_vx.dim() == dest_vx.dim(),
+        "src and dest (vx) differ in dimension (src: {:?}, dest: {:?})",
+        src_vx.dim(), dest_vx.dim());
+    debug_assert!(src_vy.dim() == dest_vy.dim(),
+        "src and dest (vy) differ in dimension (src: {:?}, dest: {:?})",
+        src_vy.dim(), dest_vy.dim());
+
+
+    // size of a filtered slice
+    let mut level_size = src_vx.dim();
+
+    for _ in 0 .. levels {
+        let mut level_size = (level_size.0 / 2, level_size.1 / 2);
+
+        // split into wavelet components
+        let (mut s_vx_00, mut s_vx_01, mut s_vx_10, mut s_vx_11) = {
+            let (mut low_y, mut high_y) = src_dx.view_mut().split_at(Axis(0), level_size.0);
+            let (lylx, lyhx) = low_y.split_at(Axis(1), level_size.1);
+            let (hylx, hyhx) = high_y.split_at(Axis(1), level_size.1);
+            (lylx, lyhx, hylx, hyhx)
+        };
+
+        let (mut s_vx_00, mut s_vx_01, mut s_vx_10, mut s_vx_11) = {
+            let (mut low_y, mut high_y) = src_vx.view_mut().split_at(Axis(0), level_size.0);
+            let (lylx, lyhx) = low_y.split_at(Axis(1), level_size.1);
+            let (hylx, hyhx) = high_y.split_at(Axis(1), level_size.1);
+            (lylx, lyhx, hylx, hyhx)
+        };
+
+        let (mut d_vx_00, mut d_vx_01, mut d_vx_10, mut d_vx_11) = {
+            let (mut low_y, mut high_y) = dst_vx.view_mut().split_at(Axis(0), level_size.0);
+            let (lylx, lyhx) = low_y.split_at(Axis(1), level_size.1);
+            let (hylx, hyhx) = high_y.split_at(Axis(1), level_size.1);
+            (lylx, lyhx, hylx, hyhx)
+        };
+
+        let (mut d_vy_00, mut d_vy_01, mut d_vy_10, mut d_vy_11) = {
+            let (mut low_y, mut high_y) = dst_vy.view_mut().split_at(Axis(0), level_size.0);
+            let (lylx, lyhx) = low_y.split_at(Axis(1), level_size.1);
+            let (hylx, hyhx) = high_y.split_at(Axis(1), level_size.1);
+            (lylx, lyhx, hylx, hyhx)
+        };
+
+        // TODO: generate new div wavelet coefficients
+        
     }
 }
 
