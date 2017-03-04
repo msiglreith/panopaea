@@ -282,62 +282,87 @@ fn fwt_2d_anisotropic<W: Wavelet<f64>>(mut output: ArrayViewMut<f64, Ix2>, level
 }
 
 fn div_coeff_2d(levels: usize,
-    src_vx: ArrayView<f64, Ix2>, mut dst_vx: ArrayViewMut<f64, Ix2>,
-    src_vy: ArrayView<f64, Ix2>, mut dst_vy: ArrayViewMut<f64, Ix2>)
+    src_vx: ArrayView<f64, Ix2>, src_vy: ArrayView<f64, Ix2>,
+    mut dst_div: ArrayViewMut<f64, Ix2>, mut dst_n: ArrayViewMut<f64, Ix2>)
 {
-    debug_assert!(src_vx.dim() == dest_vx.dim(),
+    // all arrays should have the same dimension
+    debug_assert!(src_vx.dim() == src_vy.dim(),
         "Input arrays differ in dimension (vx: {:?}, vy: {:?})",
         src_vx.dim(), src_vx.dim());
-    debug_assert!(src_vx.dim() == dest_vx.dim(),
-        "src and dest (vx) differ in dimension (src: {:?}, dest: {:?})",
-        src_vx.dim(), dest_vx.dim());
-    debug_assert!(src_vy.dim() == dest_vy.dim(),
-        "src and dest (vy) differ in dimension (src: {:?}, dest: {:?})",
-        src_vy.dim(), dest_vy.dim());
+    debug_assert!(src_vx.dim() == dst_div.dim(),
+        "src (vx) and dst (div) differ in dimension (src: {:?}, dst: {:?})",
+        src_vx.dim(), dst_div.dim());
+    debug_assert!(src_vy.dim() == dst_n.dim(),
+        "src (vy) and dst (n) differ in dimension (src: {:?}, dst: {:?})",
+        src_vy.dim(), dst_n.dim());
 
 
     // size of a filtered slice
     let mut level_size = src_vx.dim();
 
-    for _ in 0 .. levels {
-        let mut level_size = (level_size.0 / 2, level_size.1 / 2);
+    for n in 0 .. levels {
+        let coarse_slice = s![..level_size.0 as isize, ..level_size.1 as isize];
+        let src_vx = src_vx.slice(coarse_slice);
+        let src_vy = src_vy.slice(coarse_slice);
+        let mut dst_div = dst_div.slice_mut(coarse_slice);
+        let mut dst_n = dst_n.slice_mut(coarse_slice);
+
+        level_size = (level_size.0 / 2, level_size.1 / 2);
 
         // split into wavelet components
-        let (mut s_vx_00, mut s_vx_01, mut s_vx_10, mut s_vx_11) = {
-            let (mut low_y, mut high_y) = src_dx.view_mut().split_at(Axis(0), level_size.0);
+        let (mut vx_00, mut vx_01, mut vx_10, mut vx_11) = {
+            let (mut low_y, mut high_y) = src_vx.view().split_at(Axis(0), level_size.0);
+            println!("{:?}", (low_y.dim(), high_y.dim()));
             let (lylx, lyhx) = low_y.split_at(Axis(1), level_size.1);
             let (hylx, hyhx) = high_y.split_at(Axis(1), level_size.1);
             (lylx, lyhx, hylx, hyhx)
         };
 
-        let (mut s_vx_00, mut s_vx_01, mut s_vx_10, mut s_vx_11) = {
-            let (mut low_y, mut high_y) = src_vx.view_mut().split_at(Axis(0), level_size.0);
+        println!("{:?}", (vx_00.dim(), vx_01.dim(), vx_10.dim(), vx_11.dim()));
+
+        let (mut vy_00, mut vy_01, mut vy_10, mut vy_11) = {
+            let (mut low_y, mut high_y) = src_vy.view().split_at(Axis(0), level_size.0);
             let (lylx, lyhx) = low_y.split_at(Axis(1), level_size.1);
             let (hylx, hyhx) = high_y.split_at(Axis(1), level_size.1);
             (lylx, lyhx, hylx, hyhx)
         };
 
-        let (mut d_vx_00, mut d_vx_01, mut d_vx_10, mut d_vx_11) = {
-            let (mut low_y, mut high_y) = dst_vx.view_mut().split_at(Axis(0), level_size.0);
+        let (mut div_00, mut div_01, mut div_10, mut div_11) = {
+            let (mut low_y, mut high_y) = dst_div.view_mut().split_at(Axis(0), level_size.0);
             let (lylx, lyhx) = low_y.split_at(Axis(1), level_size.1);
             let (hylx, hyhx) = high_y.split_at(Axis(1), level_size.1);
             (lylx, lyhx, hylx, hyhx)
         };
 
-        let (mut d_vy_00, mut d_vy_01, mut d_vy_10, mut d_vy_11) = {
-            let (mut low_y, mut high_y) = dst_vy.view_mut().split_at(Axis(0), level_size.0);
+        let (mut n_00, mut n_01, mut n_10, mut n_11) = {
+            let (mut low_y, mut high_y) = dst_n.view_mut().split_at(Axis(0), level_size.0);
             let (lylx, lyhx) = low_y.split_at(Axis(1), level_size.1);
             let (hylx, hyhx) = high_y.split_at(Axis(1), level_size.1);
             (lylx, lyhx, hylx, hyhx)
         };
 
         // TODO: generate new div wavelet coefficients
-        
+        for y in 0..level_size.0 {
+            for x in 0..level_size.1 {
+                div_01[(y, x)] = vy_01[(y, x)];
+                div_10[(y, x)] = vx_10[(y, x)];
+                div_11[(y, x)] = (vx_11[(y, x)] - vy_11[(y, x)]) / 2.0;
+
+                n_01[(y, x)] = vx_01[(y, x)] + (vy_01[(y, x)] - vy_01[(y.saturating_sub(1), x)]) / 4.0; // TODO
+                n_10[(y, x)] = vy_10[(y, x)] + (vx_10[(y, x)] - vx_10[(y, x.saturating_sub(1))]) / 4.0; // TODO
+                n_11[(y, x)] = (vx_11[(y, x)] + vy_11[(y, x)]) / 2.0;
+            }
+        }
+
+        if n == levels-1 {
+            div_00.assign(&vx_00);
+            n_00.assign(&vy_00);
+        }
     }
 }
 
 fn main() {
-    {
+    if false {
         let mut decomposition = arr1(&[12.0, 4.0, 6.0, 8.0, 4.0, 2.0, 5.0, 7.0]);
         let mut temp = Array1::zeros(decomposition.len());
 
@@ -358,6 +383,8 @@ fn main() {
     }
     
 
+    // example:
+    // fwt/ifwt of a 2d image
     {
         let lena = image::open("examples/data/lena.png").unwrap().flipv();
         let mut input = Array2::from_elem((lena.height() as usize, lena.width() as usize), 0.0);
@@ -417,5 +444,94 @@ fn main() {
             &img_data,
             (decomposed.dim().1,
              decomposed.dim().0));
+    }
+
+    // example:
+    // extracting divergence coefficients from velocity field
+    {
+        let vel_input = image::open("vel_sample_300.png").unwrap().flipv();
+        let mut vx = Array2::from_elem((vel_input.height() as usize, vel_input.width() as usize), 0.0);
+        let mut vy = Array2::from_elem((vel_input.height() as usize, vel_input.width() as usize), 0.0);
+        let mut temp = Array2::from_elem((vel_input.height() as usize, vel_input.width() as usize), 0.0);
+
+        let mut div = Array2::from_elem((vel_input.height() as usize, vel_input.width() as usize), 0.0);
+        let mut n = Array2::from_elem((vel_input.height() as usize, vel_input.width() as usize), 0.0);
+
+        let mut rng = rand::thread_rng();
+        for y in 0..vx.dim().0 {
+            for x in 0..vx.dim().1 {
+                let px = vel_input.get_pixel(x as u32, y as u32);
+                vx[(y, x)] = (px.data[0] as f64 / 255.0) * 200.0 - 100.0;
+                vy[(y, x)] = (px.data[1] as f64 / 255.0) * 200.0 - 100.0;
+            }
+        }
+
+        fwt_2d_separate_isotropic::<spline::Bior31, spline::Bior22>(vx.view_mut(), 3, temp.view_mut());
+        fwt_2d_separate_isotropic::<spline::Bior22, spline::Bior31>(vy.view_mut(), 3, temp.view_mut());
+
+        div_coeff_2d(3, vx.view(), vy.view(), div.view_mut(), n.view_mut());
+
+        //
+        let img_data = {
+            let mut data = Vec::new();
+            for y in 0..vx.dim().0 {
+                for x in 0..vx.dim().1 {
+                    let vx = &vx[(y, x)];
+                    let vy = &vy[(y, x)];
+                    data.push([
+                        util::imgproc::transfer(vx, -10.0, 10.0),
+                        util::imgproc::transfer(vy, -10.0, 10.0),
+                        0,
+                    ]);
+                }
+            }
+            data
+        };
+
+        util::png::export(
+            format!("vel_output.png"),
+            &img_data,
+            (vx.dim().1, vx.dim().0));
+
+        let img_data = {
+            let mut data = Vec::new();
+            for y in 0..vx.dim().0 {
+                for x in 0..vx.dim().1 {
+                    let div = &div[(y, x)];
+                    data.push([
+                        util::imgproc::transfer(div, -10.0, 10.0),
+                        util::imgproc::transfer(div, -10.0, 10.0),
+                        util::imgproc::transfer(div, -10.0, 10.0),
+                    ]);
+                }
+            }
+            data
+        };
+
+        util::png::export(
+            format!("div_output.png"),
+            &img_data,
+            (vx.dim().1, vx.dim().0));
+
+
+        let img_data = {
+            let mut data = Vec::new();
+            for y in 0..vx.dim().0 {
+                for x in 0..vx.dim().1 {
+                    let n = &n[(y, x)];
+                    data.push([
+                        util::imgproc::transfer(n, -10.0, 10.0),
+                        util::imgproc::transfer(n, -10.0, 10.0),
+                        util::imgproc::transfer(n, -10.0, 10.0),
+                    ]);
+                }
+            }
+            data
+        };
+
+        util::png::export(
+            format!("non-div_output.png"),
+            &img_data,
+            (vx.dim().1, vx.dim().0));
     }
 }
