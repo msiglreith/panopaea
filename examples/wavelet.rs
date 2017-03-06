@@ -1047,50 +1047,6 @@ fn fwt_2d_separate_isotropic_border<Wx, Wy>(input: ArrayView<f64, Ix2>, levels: 
                 detail_hx.subview_mut(Axis(0), i as usize));
         }
 
-        //
-        let img_data = {
-            let mut data = Vec::new();
-            for y in 0 .. down_lx.dim().0 {
-                for x in 0 .. down_lx.dim().1 {
-                    let val = &down_lx[(y, x)];
-                    data.push([
-                        util::imgproc::transfer(val, 0.0, 255.0),
-                        util::imgproc::transfer(val, 0.0, 255.0),
-                        util::imgproc::transfer(val, 0.0, 255.0),
-                    ]);
-                }
-            }
-            data
-        };
-
-        util::png::export(
-            format!("output_lena/lena_border_fwt_down_lx_{:?}.png", n),
-            &img_data,
-            (down_lx.dim().1,
-             down_lx.dim().0));
-
-        let img_data = {
-            let mut data = Vec::new();
-            for y in 0 .. detail_hx.dim().0 {
-                for x in 0 .. detail_hx.dim().1 {
-                    let val = &detail_hx[(y, x)];
-                    data.push([
-                        util::imgproc::transfer(val, 0.0, 255.0),
-                        util::imgproc::transfer(val, 0.0, 255.0),
-                        util::imgproc::transfer(val, 0.0, 255.0),
-                    ]);
-                }
-            }
-            data
-        };
-
-        util::png::export(
-            format!("output_lena/lena_border_fwt_down_hx_{:?}.png", n),
-            &img_data,
-            (detail_hx.dim().1,
-             detail_hx.dim().0));
-        //
-
         // y direction
         for i in 0..band_size.1 {
             down_convolution_border::<Wy>(
@@ -1144,50 +1100,6 @@ fn ifwt_2d_separate_isotropic_border<Wx, Wy>(&(ref coarse, ref details): &(Array
                 detail_hx.subview_mut(Axis(1), i as usize));
         }
 
-        //
-        let img_data = {
-            let mut data = Vec::new();
-            for y in 0 .. up_lx.dim().0 {
-                for x in 0 .. up_lx.dim().1 {
-                    let val = &up_lx[(y, x)];
-                    data.push([
-                        util::imgproc::transfer(val, 0.0, 255.0),
-                        util::imgproc::transfer(val, 0.0, 255.0),
-                        util::imgproc::transfer(val, 0.0, 255.0),
-                    ]);
-                }
-            }
-            data
-        };
-
-        util::png::export(
-            format!("output_lena/lena_border_ifwt_up_lx_{:?}.png", n),
-            &img_data,
-            (up_lx.dim().1,
-             up_lx.dim().0));
-
-        let img_data = {
-            let mut data = Vec::new();
-            for y in 0 .. detail_hx.dim().0 {
-                for x in 0 .. detail_hx.dim().1 {
-                    let val = &detail_hx[(y, x)];
-                    data.push([
-                        util::imgproc::transfer(val, 0.0, 255.0),
-                        util::imgproc::transfer(val, 0.0, 255.0),
-                        util::imgproc::transfer(val, 0.0, 255.0),
-                    ]);
-                }
-            }
-            data
-        };
-
-        util::png::export(
-            format!("output_lena/lena_border_ifwt_down_hx_{:?}.png", n),
-            &img_data,
-            (detail_hx.dim().1,
-             detail_hx.dim().0));
-        //
-
         // x direction
         for i in 0..up.dim().0 {
             up_convolution_border::<Wx>(
@@ -1223,7 +1135,7 @@ fn test_2d_lena_border() {
         }
     }
 
-    let (coarse, details) = fwt_2d_separate_isotropic_border::<spline::Bior31, spline::Bior31>(input.view(), 1);
+    let (coarse, details) = fwt_2d_separate_isotropic_border::<spline::Bior22, spline::Bior31>(input.view(), 3);
 
     let img_data = {
         let mut data = Vec::new();
@@ -1314,7 +1226,7 @@ fn test_2d_lena_border() {
              detail[2].dim().0));
     }
 
-    let reconstructed = ifwt_2d_separate_isotropic_border::<spline::Bior31, spline::Bior31>(&(coarse, details));
+    let reconstructed = ifwt_2d_separate_isotropic_border::<spline::Bior22, spline::Bior31>(&(coarse, details));
 
     let img_data = {
         let mut data = Vec::new();
