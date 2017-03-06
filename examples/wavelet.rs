@@ -917,20 +917,55 @@ fn test_fluid_sim() {
     }
 }
 
-fn fwt_1d_border<W: Wavelet<f64>>(input: ArrayView<f64, Ix1>) -> Array1<f64> {
-    let filter_size = W::N::to_isize();
-    let band_size = input.len() / 2 + filter_size as usize;
-    let mut output = Array1::zeros(band_size * 2);
+fn fwt_1d_border<W: Wavelet<f64>>(input: ArrayView<f64, Ix1>, levels: usize) -> (Array1<f64>, Vec<Array1<f64>>) {
+    let mut details = Vec::new();
+    let mut coarse = Array1::zeros(input.len());
+    coarse.assign(&input);
 
-    let half_size = (output.len() / 2) as isize;
+    for _ in 0..levels {
+        let filter_size = W::filter_length();
+        let border_width = W::border_width();
+        let band_size = coarse.len() / 2 + 2 * border_width as usize;
+        let mut detail = Array1::zeros(band_size);
+        let mut down = Array1::zeros(band_size);
+
+        down_convolution_border::<W>(coarse.view(), down.view_mut(), detail.view_mut());
+
+        details.push(detail);
+        coarse = down;
+    }
+
+    (coarse, details)
+}
+
+fn ifwt_1d_border<W: Wavelet<f64>>(&(ref coarse, ref details): &(Array1<f64>, Vec<Array1<f64>>)) -> Array1<f64> {
+    let mut coarse = coarse.clone();
+    let filter_size = W::filter_length();
+
+    for detail in details.iter().rev() {
+        let input_len = coarse.len() + detail.len();
+        let border_width = W::border_width();
+        let mut up = Array1::zeros(input_len - 4*border_width as usize);
+        up_convolution_border::<W>(coarse.view(), detail.view(), up.view_mut());
+        coarse = up;
+    }
+
+    coarse
+}
+
+fn down_convolution_border<W: Wavelet<f64>>(input: ArrayView<f64, Ix1>, mut coarse: ArrayViewMut<f64, Ix1>, mut detail: ArrayViewMut<f64, Ix1>) {
+    let filter_size = W::filter_length();
     let filter_half = filter_size / 2;
+    let border_width = W::border_width();
+    let half_size = detail.len() as isize;
+    
     let low_pass = W::coeff_down_low();
     let high_pass = W::coeff_down_high();
 
     // low-pass
     for i in 0..half_size {
-        output[i as usize] = (0..filter_size).fold(0.0, |acc, f| {
-            let input_src = 2*(i-filter_half)+f-filter_half+1;
+        coarse[i as usize] = (0..filter_size).fold(0.0, |acc, f| {
+            let input_src = 2*(i-border_width)+f-filter_half+1;
             let filter_src = (filter_size-1-f) as usize;
             ZeroSampler::fetch(input, input_src) * low_pass[filter_src] + acc
         });
@@ -938,64 +973,372 @@ fn fwt_1d_border<W: Wavelet<f64>>(input: ArrayView<f64, Ix1>) -> Array1<f64> {
 
     // high pass
     for i in 0..half_size {
-        output[(i+half_size) as usize] = (0..filter_size).fold(0.0, |acc, f| {
-            let input_src = 2*(i-filter_half)+f-filter_half+1;
+        detail[i as usize] = (0..filter_size).fold(0.0, |acc, f| {
+            let input_src = 2*(i-border_width)+f-filter_half+1;
             let filter_src = (filter_size-1-f) as usize;
             ZeroSampler::fetch(input, input_src) * high_pass[filter_src] + acc
         });
     }
-
-    output
 }
 
-fn ifwt_1d_border<W: Wavelet<f64>>(input: ArrayView<f64, Ix1>) -> Array1<f64> {
-    let filter_size = W::N::to_isize();
-    let mut output = Array1::zeros(input.len() - 2 * filter_size as usize);
+fn up_convolution_border<W: Wavelet<f64>>(coarse: ArrayView<f64, Ix1>, detail: ArrayView<f64, Ix1>, mut output: ArrayViewMut<f64, Ix1>) {
+    let filter_size = W::filter_length();
+    let input_len = coarse.len() + detail.len();
 
-    // let half_size = (output.len() / 2) as isize;
-    let in_half_size = (input.len() / 2) as isize;
+    let in_half_size = (input_len / 2) as isize;
     let filter_half = filter_size / 2;
+    let border_width = W::border_width();
     let low_pass = W::coeff_up_low();
     let high_pass = W::coeff_up_high();
 
+    output.fill(0.0);
     for i in 0..in_half_size {
         for f in 0..filter_size {
             let idx_out = {
                 let idx = (2 * i + f - filter_half + 1);
                 if idx < 0 {
-                    (idx + input.len() as isize) % input.len() as isize
+                    (idx + input_len as isize) % input_len as isize
                 } else {
-                    idx % input.len() as isize
+                    idx % input_len as isize
                 }
             };
 
-            let idx_out = idx_out - filter_size;
+            let idx_out = idx_out - 2 * border_width;
             if idx_out < 0 || idx_out >= output.len() as isize {
                 continue;
             }
 
             let filter_src = f as usize;
             output[idx_out as usize] +=
-                ZeroSampler::fetch(input, i) * low_pass[filter_src] +
-                ZeroSampler::fetch(input, i+in_half_size) * high_pass[filter_src];
+                ZeroSampler::fetch(coarse, i) * low_pass[filter_src] +
+                ZeroSampler::fetch(detail, i) * high_pass[filter_src];
         }  
     }
-    output
 }
 
-fn main() {
-    let input = arr1(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
+fn fwt_2d_separate_isotropic_border<Wx, Wy>(input: ArrayView<f64, Ix2>, levels: usize) -> (Array2<f64>, Vec<[Array2<f64>; 3]>)
+    where Wx: Wavelet<f64>, Wy: Wavelet<f64> 
+{
+    let mut details = Vec::new();
+    let mut coarse = Array2::zeros(input.dim());
+    coarse.assign(&input);
 
-    let fwt = fwt_1d_border::<spline::Bior22>(input.view());
-    let ifwt = ifwt_1d_border::<spline::Bior22>(fwt.view());
+    for n in 0..levels {
+        let filter_size_x = Wx::filter_length();
+        let border_width_x = Wx::border_width();
+        let filter_size_y = Wy::filter_length();
+        let border_width_y = Wy::border_width();
+        let band_size = (
+            coarse.dim().0 / 2 + 2 * border_width_y as usize,
+            coarse.dim().1 / 2 + 2 * border_width_x as usize);
+
+        let mut down_lx = Array2::zeros((coarse.dim().0, band_size.1));
+        let mut detail_hx = Array2::zeros((coarse.dim().0, band_size.1));
+        let mut detail_lyhx = Array2::zeros(band_size);
+        let mut detail_hylx = Array2::zeros(band_size);
+        let mut detail_hyhx = Array2::zeros(band_size);
+        let mut down = Array2::zeros(band_size);
+
+        // x direction
+        for i in 0..coarse.dim().0 {
+            down_convolution_border::<Wx>(
+                coarse.subview(Axis(0), i as usize),
+                down_lx.subview_mut(Axis(0), i as usize),
+                detail_hx.subview_mut(Axis(0), i as usize));
+        }
+
+        //
+        let img_data = {
+            let mut data = Vec::new();
+            for y in 0 .. down_lx.dim().0 {
+                for x in 0 .. down_lx.dim().1 {
+                    let val = &down_lx[(y, x)];
+                    data.push([
+                        util::imgproc::transfer(val, 0.0, 255.0),
+                        util::imgproc::transfer(val, 0.0, 255.0),
+                        util::imgproc::transfer(val, 0.0, 255.0),
+                    ]);
+                }
+            }
+            data
+        };
+
+        util::png::export(
+            format!("output_lena/lena_border_fwt_down_lx_{:?}.png", n),
+            &img_data,
+            (down_lx.dim().1,
+             down_lx.dim().0));
+
+        let img_data = {
+            let mut data = Vec::new();
+            for y in 0 .. detail_hx.dim().0 {
+                for x in 0 .. detail_hx.dim().1 {
+                    let val = &detail_hx[(y, x)];
+                    data.push([
+                        util::imgproc::transfer(val, 0.0, 255.0),
+                        util::imgproc::transfer(val, 0.0, 255.0),
+                        util::imgproc::transfer(val, 0.0, 255.0),
+                    ]);
+                }
+            }
+            data
+        };
+
+        util::png::export(
+            format!("output_lena/lena_border_fwt_down_hx_{:?}.png", n),
+            &img_data,
+            (detail_hx.dim().1,
+             detail_hx.dim().0));
+        //
+
+        // y direction
+        for i in 0..band_size.1 {
+            down_convolution_border::<Wy>(
+                down_lx.subview(Axis(1), i as usize),
+                down.subview_mut(Axis(1), i as usize),
+                detail_hylx.subview_mut(Axis(1), i as usize));
+            down_convolution_border::<Wy>(
+                detail_hx.subview(Axis(1), i as usize),
+                detail_lyhx.subview_mut(Axis(1), i as usize),
+                detail_hyhx.subview_mut(Axis(1), i as usize));
+        }
+
+        coarse = down;
+        details.push([detail_lyhx, detail_hylx, detail_hyhx]);
+    }
+
+    (coarse, details)
+}
+
+fn ifwt_2d_separate_isotropic_border<Wx, Wy>(&(ref coarse, ref details): &(Array2<f64>, Vec<[Array2<f64>; 3]>)) -> Array2<f64>
+    where Wx: Wavelet<f64>, Wy: Wavelet<f64>
+{
+    let mut coarse = coarse.clone();
+    let filter_size_x = Wx::filter_length();
+    let filter_size_y = Wy::filter_length();
+
+    for (n, detail) in details.iter().enumerate().rev() {
+        let border_width_x = Wx::border_width();
+        let border_width_y = Wy::border_width();
+        let mut up = Array2::zeros((
+            2 * coarse.dim().0 - 4 * border_width_y as usize,
+            2 * coarse.dim().1 - 4 * border_width_x as usize));
+
+        let mut up_lx = Array2::zeros((2 * coarse.dim().0 - 4 * border_width_y as usize, coarse.dim().1));
+        let mut detail_hx = Array2::zeros((2 * coarse.dim().0 - 4 * border_width_y as usize, coarse.dim().1));
+
+        let detail_lyhx = &detail[0];
+        let detail_hylx = &detail[1];
+        let detail_hyhx = &detail[2];
+
+        // y direction
+        for i in 0..coarse.dim().1 {
+            up_convolution_border::<Wy>(
+                coarse.subview(Axis(1), i as usize),
+                detail_hylx.subview(Axis(1), i as usize),
+                up_lx.subview_mut(Axis(1), i as usize));
+
+            up_convolution_border::<Wy>(
+                detail_lyhx.subview(Axis(1), i as usize),
+                detail_hyhx.subview(Axis(1), i as usize),
+                detail_hx.subview_mut(Axis(1), i as usize));
+        }
+
+        //
+        let img_data = {
+            let mut data = Vec::new();
+            for y in 0 .. up_lx.dim().0 {
+                for x in 0 .. up_lx.dim().1 {
+                    let val = &up_lx[(y, x)];
+                    data.push([
+                        util::imgproc::transfer(val, 0.0, 255.0),
+                        util::imgproc::transfer(val, 0.0, 255.0),
+                        util::imgproc::transfer(val, 0.0, 255.0),
+                    ]);
+                }
+            }
+            data
+        };
+
+        util::png::export(
+            format!("output_lena/lena_border_ifwt_up_lx_{:?}.png", n),
+            &img_data,
+            (up_lx.dim().1,
+             up_lx.dim().0));
+
+        let img_data = {
+            let mut data = Vec::new();
+            for y in 0 .. detail_hx.dim().0 {
+                for x in 0 .. detail_hx.dim().1 {
+                    let val = &detail_hx[(y, x)];
+                    data.push([
+                        util::imgproc::transfer(val, 0.0, 255.0),
+                        util::imgproc::transfer(val, 0.0, 255.0),
+                        util::imgproc::transfer(val, 0.0, 255.0),
+                    ]);
+                }
+            }
+            data
+        };
+
+        util::png::export(
+            format!("output_lena/lena_border_ifwt_down_hx_{:?}.png", n),
+            &img_data,
+            (detail_hx.dim().1,
+             detail_hx.dim().0));
+        //
+
+        // x direction
+        for i in 0..up.dim().0 {
+            up_convolution_border::<Wx>(
+                up_lx.subview(Axis(0), i as usize),
+                detail_hx.subview(Axis(0), i as usize),
+                up.subview_mut(Axis(0), i as usize));
+        }
+
+        coarse = up;
+    }
+
+    coarse
+}
+
+fn test_1d_border() {
+    let input = arr1(&(0..128).map(|i| i as f64).collect::<Vec<_>>());
+
+    let fwt = fwt_1d_border::<spline::Bior13>(input.view(), 3);
+    let ifwt = ifwt_1d_border::<spline::Bior13>(&fwt);
 
     println!("fwt (border): {:?}", fwt);
     println!("ifwt (border): {:?}", ifwt);
+}
 
-    let mut decomposition = arr1(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
-    let mut temp = Array1::zeros(decomposition.len());
-    fwt_1d::<spline::Bior22>(decomposition.view_mut(), 1, temp.view_mut());
-    println!("fwt: {:?}", decomposition);
-    ifwt_1d::<spline::Bior22>(decomposition.view_mut(), 1, temp.view_mut());
-    println!("ifwt: {:?}", decomposition);
+fn test_2d_lena_border() {
+    let lena = image::open("examples/data/lena.png").unwrap().flipv();
+    let mut input = Array2::from_elem((lena.height() as usize, lena.width() as usize), 0.0);
+
+    // lena to array
+    for y in 0..lena.height() {
+        for x in 0..lena.width() {
+            input[(y as usize, x as usize)] = lena.get_pixel(x, y).data[0] as f64;
+        }
+    }
+
+    let (coarse, details) = fwt_2d_separate_isotropic_border::<spline::Bior31, spline::Bior31>(input.view(), 1);
+
+    let img_data = {
+        let mut data = Vec::new();
+        for y in 0 .. coarse.dim().0 {
+            for x in 0 .. coarse.dim().1 {
+                let val = &coarse[(y, x)];
+                data.push([
+                    util::imgproc::transfer(val, 0.0, 255.0 * (2.0f64).powi(details.len() as i32)),
+                    util::imgproc::transfer(val, 0.0, 255.0 * (2.0f64).powi(details.len() as i32)),
+                    util::imgproc::transfer(val, 0.0, 255.0 * (2.0f64).powi(details.len() as i32)),
+                ]);
+            }
+        }
+        data
+    };
+
+    util::png::export(
+        format!("output_lena/lena_border_fwt_coarse.png"),
+        &img_data,
+        (coarse.dim().1,
+         coarse.dim().0));
+
+    for (n, detail) in details.iter().enumerate() {
+        // lyhx
+        let img_data = {
+            let mut data = Vec::new();
+            for y in 0 .. detail[0].dim().0 {
+                for x in 0 .. detail[0].dim().1 {
+                    let val = &detail[0][(y, x)];
+                    data.push([
+                        util::imgproc::transfer(val, 0.0, 255.0 * (2.0f64).powi(n as i32) / 2.0),
+                        util::imgproc::transfer(val, 0.0, 255.0 * (2.0f64).powi(n as i32) / 2.0),
+                        util::imgproc::transfer(val, 0.0, 255.0 * (2.0f64).powi(n as i32) / 2.0),
+                    ]);
+                }
+            }
+            data
+        };
+
+        util::png::export(
+            format!("output_lena/lena_border_fwt_detail_{:?}_lyhx.png", n),
+            &img_data,
+            (detail[0].dim().1,
+             detail[0].dim().0));
+
+        // hylx
+        let img_data = {
+            let mut data = Vec::new();
+            for y in 0 .. detail[1].dim().0 {
+                for x in 0 .. detail[1].dim().1 {
+                    let val = &detail[1][(y, x)];
+                    data.push([
+                        util::imgproc::transfer(val, 0.0, 255.0 * (2.0f64).powi(n as i32) / 2.0),
+                        util::imgproc::transfer(val, 0.0, 255.0 * (2.0f64).powi(n as i32) / 2.0),
+                        util::imgproc::transfer(val, 0.0, 255.0 * (2.0f64).powi(n as i32) / 2.0),
+                    ]);
+                }
+            }
+            data
+        };
+
+        util::png::export(
+            format!("output_lena/lena_border_fwt_detail_{:?}_hylx.png", n),
+            &img_data,
+            (detail[1].dim().1,
+             detail[1].dim().0));
+
+        // hyhx
+        let img_data = {
+            let mut data = Vec::new();
+            for y in 0 .. detail[2].dim().0 {
+                for x in 0 .. detail[2].dim().1 {
+                    let val = &detail[2][(y, x)];
+                    data.push([
+                        util::imgproc::transfer(val, 0.0, 255.0 * (2.0f64).powi(n as i32) / 2.0),
+                        util::imgproc::transfer(val, 0.0, 255.0 * (2.0f64).powi(n as i32) / 2.0),
+                        util::imgproc::transfer(val, 0.0, 255.0 * (2.0f64).powi(n as i32) / 2.0),
+                    ]);
+                }
+            }
+            data
+        };
+
+        util::png::export(
+            format!("output_lena/lena_border_fwt_detail_{:?}_hyhx.png", n),
+            &img_data,
+            (detail[2].dim().1,
+             detail[2].dim().0));
+    }
+
+    let reconstructed = ifwt_2d_separate_isotropic_border::<spline::Bior31, spline::Bior31>(&(coarse, details));
+
+    let img_data = {
+        let mut data = Vec::new();
+        for y in 0 .. reconstructed.dim().0 {
+            for x in 0 .. reconstructed.dim().1 {
+                let val = &reconstructed[(y, x)];
+                data.push([
+                    util::imgproc::transfer(val, 0.0, 255.0),
+                    util::imgproc::transfer(val, 0.0, 255.0),
+                    util::imgproc::transfer(val, 0.0, 255.0),
+                ]);
+            }
+        }
+        data
+    };
+
+    util::png::export(
+        format!("output_lena/lena_border_ifwt.png"),
+        &img_data,
+        (reconstructed.dim().1,
+         reconstructed.dim().0));
+
+}
+
+fn main() {
+    test_2d_lena_border()
 }

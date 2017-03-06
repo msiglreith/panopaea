@@ -91,6 +91,29 @@ fn main() {
 
         println!("{}ms", sw.elapsed_ms());
 
+        if i == 300 {
+            let img_data = {
+                let mut data = Vec::new();
+                for y in 0 .. density.dim().0 {
+                    for x in 0 .. density.dim().1 {
+                        let vx = &vel.x[(y, x)];
+                        let vy = &vel.y[(y, x)];
+                        data.push([
+                            util::imgproc::transfer(vx, -100.0, 100.0),
+                            util::imgproc::transfer(vy, -100.0, 100.0),
+                            0,
+                        ]);
+                    }
+                }
+                data
+            };
+
+            util::png::export(
+                format!("vel_expected_{:?}.png", i),
+                &img_data,
+                density.dim());
+        }
+
         // debug output
         if i % 10 == 0 {
             let img_data = {
