@@ -7,7 +7,8 @@ authors = ["msiglreith <msiglreith@users.noreply.github.com>"]
 cgmath = "0.11.0"
 num = "0.1.35"
 stopwatch = "0.0.7"
-ndarray = "0.7.1"
+ndarray = "0.7.2"
+ndarray-parallel = "0.1"
 generic-array = "0.6"
 
 [dev-dependencies]

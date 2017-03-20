@@ -94,7 +94,7 @@ fn up_convolution<W: Wavelet<f64>>(input: ArrayView<f64, Ix1>, mut output: Array
     for i in 0..half_size {
         for f in 0..filter_size {
             let idx_out = {
-                let idx = (2 * i + f - filter_half + 1);
+                let idx = 2 * i + f - filter_half + 1;
                 if idx < 0 {
                     (idx + output.len() as isize) % output.len() as isize
                 } else {
@@ -995,7 +995,7 @@ fn up_convolution_border<W: Wavelet<f64>>(coarse: ArrayView<f64, Ix1>, detail: A
     for i in 0..in_half_size {
         for f in 0..filter_size {
             let idx_out = {
-                let idx = (2 * i + f - filter_half + 1);
+                let idx = 2 * i + f - filter_half + 1;
                 if idx < 0 {
                     (idx + input_len as isize) % input_len as isize
                 } else {
@@ -1066,7 +1066,7 @@ fn fwt_2d_separate_isotropic_border<Wx, Wy>(input: ArrayView<f64, Ix2>, levels: 
     (coarse, details)
 }
 
-fn ifwt_2d_separate_isotropic_border<Wx, Wy>(&(ref coarse, ref details): &(Array2<f64>, Vec<[Array2<f64>; 3]>)) -> Array2<f64>
+fn ifwt_2d_separate_isotropic_border<Wx, Wy>(&(ref coarse, ref details): &WaveletTransform2d) -> Array2<f64>
     where Wx: Wavelet<f64>, Wy: Wavelet<f64>
 {
     let mut coarse = coarse.clone();
@@ -1112,6 +1112,45 @@ fn ifwt_2d_separate_isotropic_border<Wx, Wy>(&(ref coarse, ref details): &(Array
     }
 
     coarse
+}
+
+pub type WaveletTransform2d = (Array2<f64>, Vec<[Array2<f64>; 3]>);
+
+fn div_coeff_2d_border(vx: &WaveletTransform2d, vy: &WaveletTransform2d) -> (WaveletTransform2d, WaveletTransform2d)
+{
+    let div_coarse = vx.0.clone();
+    let n_coarse = vy.0.clone();
+
+    let mut div_details = Vec::new();
+    let mut n_details = Vec::new();
+
+    for (detail_vx, detail_vy) in vx.1.iter().zip(vy.1.iter()) {
+        let band_size = detail_vx[0].dim();
+
+        // split into wavelet components
+        let (vx_01, vx_10, vx_11) = (&detail_vx[0], &detail_vx[1], &detail_vx[2]);
+        let (vy_01, vy_10, vy_11) = (&detail_vy[0], &detail_vy[1], &detail_vy[2]);
+
+        let (mut div_01, mut div_10, mut div_11) = (Array2::zeros(band_size), Array2::zeros(band_size), Array2::zeros(band_size));
+        let (mut n_01, mut n_10, mut n_11) = (Array2::zeros(band_size), Array2::zeros(band_size), Array2::zeros(band_size));
+
+        for y in 0..band_size.0 {
+            for x in 0..band_size.1 {
+                div_01[(y, x)] = vy_01[(y, x)];
+                div_10[(y, x)] = vx_10[(y, x)];
+                div_11[(y, x)] = (vx_11[(y, x)] - vy_11[(y, x)]) / 2.0;
+
+                n_01[(y, x)] = vx_01[(y, x)] + (vy_01[(y, x)] - vy_01[(y.saturating_sub(1), x)]) / 4.0; // TODO
+                n_10[(y, x)] = vy_10[(y, x)] + (vx_10[(y, x)] - vx_10[(y, x.saturating_sub(1))]) / 4.0; // TODO
+                n_11[(y, x)] = (vx_11[(y, x)] + vy_11[(y, x)]) / 2.0;
+            }
+        }
+
+        div_details.push([div_01, div_10, div_11]);
+        n_details.push([n_01, n_10, n_11]);
+    }
+
+    ((div_coarse, div_details), (n_coarse, n_details))
 }
 
 fn test_1d_border() {
@@ -1252,5 +1291,115 @@ fn test_2d_lena_border() {
 }
 
 fn main() {
-    test_2d_lena_border()
+    let mut vx = Array2::from_elem((256, 256), 0.0);
+    let mut vy = Array2::from_elem((256, 256), 0.0);
+
+    for y in 0..vx.dim().0 {
+        for x in 0..vx.dim().1 {
+            let px = x as f64 / vx.dim().1 as f64;
+            let py = y as f64 / vx.dim().0 as f64;
+
+            let u_div_x = (2.0 * std::f64::consts::PI * px).sin().powi(2) * (4.0 * std::f64::consts::PI * py).sin();
+            let u_div_y = -(4.0 * std::f64::consts::PI * px).sin() * (2.0 * std::f64::consts::PI * py).sin().powi(2);
+            let u_curl_x = (4.0 * std::f64::consts::PI * px).sin() * (2.0 * std::f64::consts::PI * py).sin().powi(2);
+            let u_curl_y = (2.0 * std::f64::consts::PI * px).sin().powi(2) * (4.0 * std::f64::consts::PI * py).sin();
+            let u_har_x = 0.5;
+            let u_har_y = -0.25;
+            vx[(y, x)] = u_div_x;
+            vy[(y, x)] = u_div_y;
+        }
+    }
+
+    //
+    let img_data = {
+        let mut data = Vec::new();
+        for y in 0..vx.dim().0 {
+            for x in 0..vx.dim().1 {
+                let vx = &vx[(y, x)];
+                let vy = &vy[(y, x)];
+                data.push([
+                    util::imgproc::transfer(vx, -1.0, 1.0),
+                    util::imgproc::transfer(vy, -1.0, 1.0),
+                    0,
+                ]);
+            }
+        }
+        data
+    };
+
+    util::png::export(
+        format!("vel_2d.png"),
+        &img_data,
+        (vx.dim().1, vx.dim().0));
+
+    let fwt_vx = fwt_2d_separate_isotropic_border::<spline::Bior22, spline::Bior31>(vx.view(), 3);
+    let fwt_vy = fwt_2d_separate_isotropic_border::<spline::Bior31, spline::Bior22>(vy.view(), 3);
+
+    let (fwt_div, fwt_n) = div_coeff_2d_border(&fwt_vx, &fwt_vy);
+
+    for (n, (detail_div, detail_n)) in fwt_vx.1.iter().zip(fwt_vy.1.iter()).enumerate() {
+        // NON-DIVERGENCE-FREE
+        // lyhx
+        print_velocity_component_2d(
+            format!("output_field_/non-div_detail_{:?}_lyhx.png", n),
+            detail_n[0].view(),
+            |v| util::imgproc::transfer(v, -0.1, 0.1));
+
+        // hylx
+        print_velocity_component_2d(
+            format!("output_field_/non-div_detail_{:?}_hylx.png", n),
+            detail_n[1].view(),
+            |v| util::imgproc::transfer(v, -0.1, 0.1));
+
+        // hyhx
+        print_velocity_component_2d(
+            format!("output_field_/non-div_detail_{:?}_hyhx.png", n),
+            detail_n[2].view(),
+            |v| util::imgproc::transfer(v, -0.1, 0.1));
+
+
+        // DIVERGENCE-FREE
+        // lyhx
+        print_velocity_component_2d(
+            format!("output_field_/div_detail_{:?}_lyhx.png", n),
+            detail_div[0].view(),
+            |v| util::imgproc::transfer(v, -0.1, 0.1));
+
+        // hylx
+        print_velocity_component_2d(
+            format!("output_field_/div_detail_{:?}_hylx.png", n),
+            detail_div[1].view(),
+            |v| util::imgproc::transfer(v, -0.1, 0.1));
+
+        // hyhx
+        print_velocity_component_2d(
+            format!("output_field_/div_detail_{:?}_hyhx.png", n),
+            detail_div[2].view(),
+            |v| util::imgproc::transfer(v, -0.1, 0.1));
+    }
+}
+
+fn print_velocity_component_2d<F>(name: String, field: ArrayView<f64, Ix2>, transfer: F)
+    where F: Fn(&f64) -> u8
+{
+    let img_data = {
+        let mut data = Vec::new();
+        for y in 0 .. field.dim().0 {
+            for x in 0 .. field.dim().1 {
+                let val = &field[(y, x)];
+                data.push([
+                    transfer(val),
+                    transfer(val),
+                    transfer(val),
+                ]);
+            }
+        }
+        data
+    };
+
+    util::png::export(
+        name,
+        &img_data,
+        (field.dim().1,
+         field.dim().0));
 }

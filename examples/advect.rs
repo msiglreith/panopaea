@@ -37,12 +37,13 @@ fn main() {
     let mut aux      = solver.allocate_grid_2d::<f64>(domain, 0.0);
     let mut search   = solver.allocate_grid_2d::<f64>(domain, 0.0);
     let mut residual = solver.allocate_grid_2d::<f64>(domain, 0.0);
+    let mut cholesky  = solver.allocate_grid_2d::<f64>(domain, 0.0);
 
     let timestep = 0.05;
     let threshold = 0.1;
 
     for i in 0 .. 1000 {
-        let sw = Stopwatch::start_new();
+        
         println!("{:?}", i);
         // inflow
         {
@@ -62,57 +63,21 @@ fn main() {
         density.assign(&temp);
         vel.assign(&vel_temp);
 
-        if i == 300 {
-            let img_data = {
-                let mut data = Vec::new();
-                for y in 0 .. density.dim().0 {
-                    for x in 0 .. density.dim().1 {
-                        let vx = &vel.x[(y, x)];
-                        let vy = &vel.y[(y, x)];
-                        data.push([
-                            util::imgproc::transfer(vx, -100.0, 100.0),
-                            util::imgproc::transfer(vy, -100.0, 100.0),
-                            0,
-                        ]);
-                    }
-                }
-                data
-            };
-
-            util::png::export(
-                format!("vel_sample_{:?}.png", i),
-                &img_data,
-                density.dim());
-        }
-
         // pressure projection
-        build_sparse_matrix(&mut diag, &mut plus_x, &mut plus_y, timestep);
-        project_cg(&mut pressure, &mut temp, &mut vel, &diag, &plus_x, &plus_y, &mut residual, &mut aux, &mut search, timestep, 200, threshold);
+        cg::build_sparse_matrix(&mut diag, &mut plus_x, &mut plus_y, timestep);
+        let precond = cg::ModIncCholesky::new(&mut cholesky, &diag, &plus_x, &plus_y);
+
+        let sw = Stopwatch::start_new();
+        cg::conjugate_gradient(&precond, &mut pressure, &mut temp, &mut vel,
+            &diag, &plus_x, &plus_y,
+            &mut residual, &mut aux, &mut search,
+            timestep, 100, 0.0);
+
+        
 
         println!("{}ms", sw.elapsed_ms());
 
-        if i == 300 {
-            let img_data = {
-                let mut data = Vec::new();
-                for y in 0 .. density.dim().0 {
-                    for x in 0 .. density.dim().1 {
-                        let vx = &vel.x[(y, x)];
-                        let vy = &vel.y[(y, x)];
-                        data.push([
-                            util::imgproc::transfer(vx, -100.0, 100.0),
-                            util::imgproc::transfer(vy, -100.0, 100.0),
-                            0,
-                        ]);
-                    }
-                }
-                data
-            };
-
-            util::png::export(
-                format!("vel_expected_{:?}.png", i),
-                &img_data,
-                density.dim());
-        }
+        project_velocity(&mut vel, &pressure, timestep);
 
         // debug output
         if i % 10 == 0 {

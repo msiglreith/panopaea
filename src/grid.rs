@@ -4,7 +4,7 @@ use ndarray::{Array, Ix1, Ix2};
 use cgmath::BaseFloat;
 use std::f64;
 
-pub trait Grid<A: BaseFloat + 'static, D> {
+pub trait Grid<A: BaseFloat + Copy + 'static, D> {
     fn norm_max(&self) -> A;
     fn view_linear(&self) -> ArrayView<A, Ix1>;
     fn view_linear_mut(&mut self) -> ArrayViewMut<A, Ix1>;
@@ -12,6 +12,8 @@ pub trait Grid<A: BaseFloat + 'static, D> {
         self.view_linear().dot(&rhs.view_linear())
     }
     fn min_max(&self) -> (f64, f64);
+
+    unsafe fn at(&self, usize) -> A;
 }
 
 impl<D: Dimension> Grid<f64, D> for ArrayBase<Vec<f64>, D> {
@@ -31,6 +33,10 @@ impl<D: Dimension> Grid<f64, D> for ArrayBase<Vec<f64>, D> {
         let min = self.iter().fold(f64::INFINITY, |min, &x| f64::min(min, x));
         let max = self.iter().fold(f64::NEG_INFINITY, |max, &x| f64::max(max, x));
         (min, max)
+    }
+
+    unsafe fn at(&self, idx: usize) -> f64 {
+        *self.as_ptr().offset(idx as isize)
     }
 }
 
