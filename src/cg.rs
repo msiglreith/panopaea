@@ -1,5 +1,6 @@
 
 use grid::{Grid, Grid2D, MacGrid2D};
+use ndarray;
 use ndarray_parallel::prelude::*;
 
 /// Conjugate gradient preconditioner.
@@ -64,27 +65,34 @@ impl<'a> ModIncCholesky<'a> {
 
 impl<'a> Preconditioner for ModIncCholesky<'a> {
     fn apply(&self, dst: &mut Grid2D<f64>, src: &Grid2D<f64>) {
-        unsafe {
-            let (h, w) = src.dim();
+        let (h, w) = dst.dim();
+
+        let mut dst = dst.as_slice_mut().unwrap();
+        let src = src.as_slice().unwrap();
+        let plus_x = self.plus_x.as_slice().unwrap();
+        let plus_y = self.plus_y.as_slice().unwrap();
+        let precond = self.precond.as_slice().unwrap();
+
+        {
             let mut idx = 0;
             for y in 0 .. h {
                 for x in 0 .. w {
+                    let mut t = src[idx];
+                    if x > 0 { t -= plus_x[idx-1] * precond[idx-1] * dst[idx-1] };
+                    if y > 0 { t -= plus_y[idx-w] * precond[idx-w] * dst[idx-w] };
+                    dst[idx] = t * precond[idx];
                     idx += 1;
-                    let mut t = src.at(idx);
-                    if x > 0 { t -= self.plus_x.at(idx-1) * self.precond.at(idx-1) * dst.at(idx-1) };
-                    if y > 0 { t -= self.plus_y.at(idx-w) * self.precond.at(idx-w) * dst.at(idx-w) };
-                    dst[(y, x)] = t * self.precond.at(idx);
                 }
             }
 
-            let mut idx = 0;
+            // TODO: This is quite slow!
             for y in (0 .. h).rev() {
                 for x in (0 .. w).rev() {
-                    idx += 1;
-                    let mut t = dst.at(idx);
-                    if x < w - 1 { t -= self.plus_x.at(idx) * self.precond.at(idx) * dst.at(idx+1) };
-                    if y < h - 1 { t -= self.plus_y.at(idx) * self.precond.at(idx) * dst.at(idx+w) };
-                    dst[(y, x)] = t * self.precond.at(idx);
+                    let mut idx = x + y*w; // TODO:
+                    let mut t = dst[idx];
+                    if x < w - 1 { t -= plus_x[idx] * precond[idx] * dst[idx+1] };
+                    if y < h - 1 { t -= plus_y[idx] * precond[idx] * dst[idx+w] };
+                    dst[idx] = t * precond[idx];
                 }
             }
         }
@@ -92,9 +100,22 @@ impl<'a> Preconditioner for ModIncCholesky<'a> {
 }
 
 fn build_div(div: &mut Grid2D<f64>, vel: &mut MacGrid2D<f64>) {
-    div.indexed_iter_mut().map(|((y, x), div)| {
-        *div = -(vel.x[(y, x+1)] - vel.x[(y, x)] + vel.y[(y+1, x)] - vel.y[(y, x)]);
-    });
+    /*
+    for y in 0 .. div.dim().0 {
+        for x in 0 .. div.dim().1 {
+            div[(y, x)] = -(vel.x[(y, x+1)] - vel.x[(y, x)] + vel.y[(y+1, x)] - vel.y[(y, x)]);
+        }
+    }
+    */
+
+    ndarray::Zip::from(div)
+        .and(vel.x.slice(s![.., 1..]))
+        .and(vel.x.slice(s![.., ..-1]))
+        .and(vel.y.slice(s![1.., ..]))
+        .and(vel.y.slice(s![..-1, ..]))
+        .apply(|div, &vx1, &vx2, &vy1, &vy2| {
+            *div = -(vx1 - vx2 + vy1 - vy2);
+        });
 }
 
 fn apply_sparse_matrix(
@@ -105,20 +126,28 @@ fn apply_sparse_matrix(
     plus_y: &Grid2D<f64>,
     timestep: f64,
 ) {
-    unsafe {
-        let scale = timestep;
-        let (h, w) = src.dim();
-        dest.indexed_iter_mut().map(|((y, x), dst)| {
-            let mut idx = y*w + x;
-            *dst = {
-                let mut b = diag.at(idx) * src.at(idx);
-                if x > 0 { b += plus_x.at(idx-1) * src.at(idx-1); }
-                if y > 0 { b += plus_y.at(idx-w) * src.at(idx-w); }
-                if x < src.dim().1-1 { b += plus_x.at(idx) * src.at(idx+1); }
-                if y < src.dim().0-1 { b += plus_y.at(idx) * src.at(idx+w); }
-                b * scale
-            };
-        });
+    let scale = timestep;
+    let (h, w) = src.dim();
+    let mut idx = 0;
+
+    let mut dst = dest.as_slice_mut().unwrap();
+    let src = src.as_slice().unwrap();
+    let diag = diag.as_slice().unwrap();
+    let plus_x = plus_x.as_slice().unwrap();
+    let plus_y = plus_y.as_slice().unwrap();
+
+    for y in 0 .. h {
+        for x in 0 .. w {
+            let mut b = diag[idx] * src[idx];
+            if x > 0 { b += plus_x[idx-1] * src[idx-1]; }
+            if y > 0 { b += plus_y[idx-w] * src[idx-w]; }
+            if x < w-1 { b += plus_x[idx] * src[idx+1]; }
+            if y < h-1 { b += plus_y[idx] * src[idx+w]; }
+        
+            dst[idx] = b * scale;
+
+            idx += 1;
+        }
     }
 }
 

@@ -71,7 +71,7 @@ fn main() {
         cg::conjugate_gradient(&precond, &mut pressure, &mut temp, &mut vel,
             &diag, &plus_x, &plus_y,
             &mut residual, &mut aux, &mut search,
-            timestep, 100, 0.0);
+            timestep, 100, threshold);
 
         
 

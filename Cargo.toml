@@ -7,9 +7,10 @@ authors = ["msiglreith <msiglreith@users.noreply.github.com>"]
 cgmath = "0.11.0"
 num = "0.1.35"
 stopwatch = "0.0.7"
-ndarray = "0.7.2"
+ndarray = "0.8.1"
 ndarray-parallel = "0.1"
 generic-array = "0.6"
+sprs = { git = "https://github.com/vbarrielle/sprs.git", version = "0.6" }
 
 [dev-dependencies]
 panopaea-util = { path = "util" }

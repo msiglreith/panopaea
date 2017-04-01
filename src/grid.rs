@@ -14,11 +14,17 @@ pub trait Grid<A: BaseFloat + Copy + 'static, D> {
     fn min_max(&self) -> (f64, f64);
 
     unsafe fn at(&self, usize) -> A;
+    unsafe fn at_mut(&mut self, usize) -> &mut A;
 }
 
 impl<D: Dimension> Grid<f64, D> for ArrayBase<Vec<f64>, D> {
     fn norm_max(&self) -> f64 {
-        self.iter().map(|x| f64::abs(*x)).fold(0.0, |max, x| f64::max(max, x))
+        let mut max = 0.0;
+        for x in self.view_linear() {
+            // Using max or abs is incredibly slow!
+            max = if *x > max { *x } else if -x > max { -x } else { max };
+        }
+        max
     }
 
     fn view_linear(&self) -> ArrayView<f64, Ix1> {
@@ -37,6 +43,10 @@ impl<D: Dimension> Grid<f64, D> for ArrayBase<Vec<f64>, D> {
 
     unsafe fn at(&self, idx: usize) -> f64 {
         *self.as_ptr().offset(idx as isize)
+    }
+
+    unsafe fn at_mut(&mut self, idx: usize) -> &mut f64 {
+        &mut *self.as_mut_ptr().offset(idx as isize)
     }
 }
 
