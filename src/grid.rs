@@ -1,10 +1,9 @@
 
 use ndarray::{ArrayBase, ArrayView, ArrayViewMut, Dimension, DataOwned};
-use ndarray::{Array, Ix1, Ix2};
-use cgmath::BaseFloat;
+use ndarray::{Array, Ix1, Ix2, LinalgScalar};
 use std::f64;
 
-pub trait Grid<A: BaseFloat + Copy + 'static, D> {
+pub trait Grid<A: LinalgScalar, D> {
     fn norm_max(&self) -> A;
     fn view_linear(&self) -> ArrayView<A, Ix1>;
     fn view_linear_mut(&mut self) -> ArrayViewMut<A, Ix1>;
@@ -50,15 +49,15 @@ impl<D: Dimension> Grid<f64, D> for ArrayBase<Vec<f64>, D> {
     }
 }
 
-pub type Grid2D<T: BaseFloat> = Array<T, Ix2>;
+pub type Grid2D<T: LinalgScalar> = Array<T, Ix2>;
 
-pub struct MacGrid2D<T: BaseFloat> {
+pub struct MacGrid2D<T: LinalgScalar> {
     pub x: Grid2D<T>,
     pub y: Grid2D<T>,
     pub dimension: (usize, usize),
 }
 
-impl<T: BaseFloat> MacGrid2D<T> {
+impl<T: LinalgScalar> MacGrid2D<T> {
     pub fn new(dim: (usize, usize), grid_x: Grid2D<T>, grid_y: Grid2D<T>) -> Self {
         // TODO[prio:high]: check subgrid dimensions
         MacGrid2D {

@@ -1,11 +1,11 @@
 
-use grid::{Grid, Grid2D, MacGrid2D};
-use math;
-
+use alga::general::Real;
+use na;
 use ndarray::{Array, Array2, Ix2};
-use cgmath::{self, BaseFloat};
-
 use std::cmp;
+
+use grid::{Grid, Grid2D, MacGrid2D};
+use math::{self, vec2};
 
 pub struct Solver {
 
@@ -18,12 +18,12 @@ impl Solver {
         }
     }
 
-    pub fn allocate_grid_2d<T: BaseFloat>(&self, size: (usize, usize), val: T) -> Grid2D<T> {
+    pub fn allocate_grid_2d<T: Real>(&self, size: (usize, usize), val: T) -> Grid2D<T> {
         Array2::<T>::from_elem(size, val)
     }
 }
 
-pub fn integrate_euler(pos: cgmath::Vector2<f64>, vel: cgmath::Vector2<f64>, dt: f64) -> cgmath::Vector2<f64> {
+pub fn integrate_euler(pos: na::Vector2<f64>, vel: na::Vector2<f64>, dt: f64) -> na::Vector2<f64> {
     pos + dt * vel
 }
 
@@ -33,12 +33,12 @@ pub fn advect(dest: &mut Grid2D<f64>, quantity: &Grid2D<f64>, timestep: f64, vel
     let (h, w) = q.dim();
     for y in 0 .. h {
         for x in 0 .. w {
-            let vel_center = cgmath::vec2(
+            let vel_center = vec2(
                 (vel.x[(y, x)] + vel.x[(y, x+1)]) / 2.0,
                 (vel.y[(y, x)] + vel.y[(y+1, x)]) / 2.0
             );
 
-            let pos = cgmath::vec2(
+            let pos = vec2(
                 (x as f64 + 0.5),
                 (y as f64 + 0.5)
             );
@@ -71,14 +71,14 @@ pub fn advect_mac(dest: &mut MacGrid2D<f64>, quantity: &MacGrid2D<f64>, timestep
 
     for y in 0 .. q.x.dim().0  {
         for x in 0 .. q.x.dim().1 {
-            let vel = cgmath::vec2(vel.x[(y, x)],
+            let vel = vec2(vel.x[(y, x)],
                 (vel.y[(y  , cmp::min(x, vel.y.dim().1-1))] +
                  vel.y[(y+1, cmp::min(x, vel.y.dim().1-1))] +
                  vel.y[(y  , x.saturating_sub(1))] +
                  vel.y[(y+1, x.saturating_sub(1))])
                  / 4.0);
 
-            let pos = cgmath::vec2(
+            let pos = vec2(
                 (x as f64 + 0.0),
                 (y as f64 + 0.5)
             );
@@ -108,7 +108,7 @@ pub fn advect_mac(dest: &mut MacGrid2D<f64>, quantity: &MacGrid2D<f64>, timestep
 
     for y in 0 .. q.y.dim().0  {
         for x in 0 .. q.y.dim().1 {
-            let vel = cgmath::vec2(
+            let vel = vec2(
                 (vel.x[(cmp::min(y, vel.x.dim().0-1), x  )] +
                  vel.x[(cmp::min(y, vel.x.dim().0-1), x+1)] +
                  vel.x[(y.saturating_sub(1), x  )] +
@@ -116,7 +116,7 @@ pub fn advect_mac(dest: &mut MacGrid2D<f64>, quantity: &MacGrid2D<f64>, timestep
                 ) / 4.0,
                 vel.y[(y, x)]);
 
-            let pos = cgmath::vec2(
+            let pos = vec2(
                 (x as f64 + 0.5),
                 (y as f64 + 0.0)
             );

@@ -1,5 +1,4 @@
 
-extern crate cgmath;
 #[macro_use]
 extern crate ndarray;
 extern crate image;
@@ -9,7 +8,6 @@ extern crate generic_array;
 
 use image::GenericImage;
 
-use cgmath::BaseFloat;
 use ndarray::{arr1, ArrayView, ArrayViewMut, Array1, Array2, Axis, Ix1, Ix2, Ix, Ixs};
 use generic_array::typenum::{Unsigned};
 
@@ -17,7 +15,7 @@ use panopaea::*;
 use panopaea::wavelet::{haar, spline, Wavelet};
 
 // Array sampler
-pub trait Sampler<T: BaseFloat> {
+pub trait Sampler<T> {
     fn fetch(input: ArrayView<T, Ix1>, idx: Ixs) -> T;
 }
 
