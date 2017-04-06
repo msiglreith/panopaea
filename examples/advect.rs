@@ -13,13 +13,13 @@ fn main() {
     let mut solver = Solver::new();
     let mut density  = solver.allocate_grid_2d::<f64>(domain, 0.0);
     let mut pressure = solver.allocate_grid_2d::<f64>(domain, 0.0);
-    let mut vel = MacGrid2D::new(
+    let mut vel = MacGrid2d::new(
             domain,
             solver.allocate_grid_2d::<f64>((domain.0    , domain.1 + 1), 0.0),
             solver.allocate_grid_2d::<f64>((domain.0 + 1, domain.1    ), 0.0),
         );
 
-    let mut vel_temp = MacGrid2D::new(
+    let mut vel_temp = MacGrid2d::new(
             domain,
             solver.allocate_grid_2d::<f64>((domain.0    , domain.1 + 1), 0.0),
             solver.allocate_grid_2d::<f64>((domain.0 + 1, domain.1    ), 0.0),

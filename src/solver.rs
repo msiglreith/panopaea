@@ -4,7 +4,7 @@ use na;
 use ndarray::{Array, Array2, Ix2};
 use std::cmp;
 
-use grid::{Grid, Grid2D, MacGrid2D};
+use grid::{Grid, Grid2d, MacGrid2d};
 use math::{self, vec2};
 
 pub struct Solver {
@@ -18,7 +18,7 @@ impl Solver {
         }
     }
 
-    pub fn allocate_grid_2d<T: Real>(&self, size: (usize, usize), val: T) -> Grid2D<T> {
+    pub fn allocate_grid_2d<T: Real>(&self, size: (usize, usize), val: T) -> Grid2d<T> {
         Array2::<T>::from_elem(size, val)
     }
 }
@@ -27,7 +27,7 @@ pub fn integrate_euler(pos: na::Vector2<f64>, vel: na::Vector2<f64>, dt: f64) ->
     pos + dt * vel
 }
 
-pub fn advect(dest: &mut Grid2D<f64>, quantity: &Grid2D<f64>, timestep: f64, vel: &MacGrid2D<f64>) {
+pub fn advect(dest: &mut Grid2d<f64>, quantity: &Grid2d<f64>, timestep: f64, vel: &MacGrid2d<f64>) {
     let q = &quantity;
 
     let (h, w) = q.dim();
@@ -66,7 +66,7 @@ pub fn advect(dest: &mut Grid2D<f64>, quantity: &Grid2D<f64>, timestep: f64, vel
     }
 }
 
-pub fn advect_mac(dest: &mut MacGrid2D<f64>, quantity: &MacGrid2D<f64>, timestep: f64, vel: &MacGrid2D<f64>) {
+pub fn advect_mac(dest: &mut MacGrid2d<f64>, quantity: &MacGrid2d<f64>, timestep: f64, vel: &MacGrid2d<f64>) {
     let q = &quantity;
 
     for y in 0 .. q.x.dim().0  {
@@ -144,7 +144,7 @@ pub fn advect_mac(dest: &mut MacGrid2D<f64>, quantity: &MacGrid2D<f64>, timestep
     }
 }
 
-pub fn project_velocity(vel: &mut MacGrid2D<f64>, pressure: &Grid2D<f64>, timestep: f64) {
+pub fn project_velocity(vel: &mut MacGrid2d<f64>, pressure: &Grid2d<f64>, timestep: f64) {
     let scale = timestep;
     for y in 0 .. vel.dimension.0 {
         for x in 0 .. vel.dimension.1 {

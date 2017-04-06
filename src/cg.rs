@@ -1,5 +1,5 @@
 
-use grid::{Grid, Grid2D, MacGrid2D};
+use grid::{Grid, Grid2d, MacGrid2d};
 use ndarray;
 use ndarray_parallel::prelude::*;
 
@@ -7,21 +7,21 @@ use ndarray_parallel::prelude::*;
 ///
 /// TODO
 pub trait Preconditioner {
-    fn apply(&self, dst: &mut Grid2D<f64>, src: &Grid2D<f64>);
+    fn apply(&self, dst: &mut Grid2d<f64>, src: &Grid2d<f64>);
 }
 
 impl Preconditioner for () {
-    fn apply(&self, dst: &mut Grid2D<f64>, src: &Grid2D<f64>) { dst.assign(src); }
+    fn apply(&self, dst: &mut Grid2d<f64>, src: &Grid2d<f64>) { dst.assign(src); }
 }
 
 pub struct ModIncCholesky<'a> {
-    precond: &'a mut Grid2D<f64>,
-    plus_x: &'a Grid2D<f64>,
-    plus_y: &'a Grid2D<f64>,
+    precond: &'a mut Grid2d<f64>,
+    plus_x: &'a Grid2d<f64>,
+    plus_y: &'a Grid2d<f64>,
 }
 
 impl<'a> ModIncCholesky<'a> {
-    pub fn new(precond: &'a mut Grid2D<f64>, diag: &Grid2D<f64>, plus_x: &'a Grid2D<f64>, plus_y: &'a Grid2D<f64>) -> Self {
+    pub fn new(precond: &'a mut Grid2d<f64>, diag: &Grid2d<f64>, plus_x: &'a Grid2d<f64>, plus_y: &'a Grid2d<f64>) -> Self {
         // Tuning constant
         let tau = 0.97;
         // Safety constant
@@ -64,7 +64,7 @@ impl<'a> ModIncCholesky<'a> {
 }
 
 impl<'a> Preconditioner for ModIncCholesky<'a> {
-    fn apply(&self, dst: &mut Grid2D<f64>, src: &Grid2D<f64>) {
+    fn apply(&self, dst: &mut Grid2d<f64>, src: &Grid2d<f64>) {
         let (h, w) = dst.dim();
 
         let mut dst = dst.as_slice_mut().unwrap();
@@ -99,7 +99,7 @@ impl<'a> Preconditioner for ModIncCholesky<'a> {
     }
 }
 
-fn build_div(div: &mut Grid2D<f64>, vel: &mut MacGrid2D<f64>) {
+fn build_div(div: &mut Grid2d<f64>, vel: &mut MacGrid2d<f64>) {
     /*
     for y in 0 .. div.dim().0 {
         for x in 0 .. div.dim().1 {
@@ -119,11 +119,11 @@ fn build_div(div: &mut Grid2D<f64>, vel: &mut MacGrid2D<f64>) {
 }
 
 fn apply_sparse_matrix(
-    dest: &mut Grid2D<f64>,
-    src: &Grid2D<f64>,
-    diag: &Grid2D<f64>,
-    plus_x: &Grid2D<f64>,
-    plus_y: &Grid2D<f64>,
+    dest: &mut Grid2d<f64>,
+    src: &Grid2d<f64>,
+    diag: &Grid2d<f64>,
+    plus_x: &Grid2d<f64>,
+    plus_y: &Grid2d<f64>,
     timestep: f64,
 ) {
     let scale = timestep;
@@ -152,9 +152,9 @@ fn apply_sparse_matrix(
 }
 
 pub fn build_sparse_matrix(
-    diag: &mut Grid2D<f64>,
-    plus_x: &mut Grid2D<f64>,
-    plus_y: &mut Grid2D<f64>,
+    diag: &mut Grid2d<f64>,
+    plus_x: &mut Grid2d<f64>,
+    plus_y: &mut Grid2d<f64>,
     timestep: f64,
 ) {
     diag.fill(0.0);
@@ -173,15 +173,15 @@ pub fn build_sparse_matrix(
 
 pub fn conjugate_gradient<P: Preconditioner>(
     preconditioner: &P,
-    mut pressure: &mut Grid2D<f64>,
-    div: &mut Grid2D<f64>,
-    vel: &mut MacGrid2D<f64>,
-    diag: &Grid2D<f64>,
-    plus_x: &Grid2D<f64>,
-    plus_y: &Grid2D<f64>,
-    residual: &mut Grid2D<f64>,
-    auxiliary_grid: &mut Grid2D<f64>,
-    mut search_grid: &mut Grid2D<f64>,
+    mut pressure: &mut Grid2d<f64>,
+    div: &mut Grid2d<f64>,
+    vel: &mut MacGrid2d<f64>,
+    diag: &Grid2d<f64>,
+    plus_x: &Grid2d<f64>,
+    plus_y: &Grid2d<f64>,
+    residual: &mut Grid2d<f64>,
+    auxiliary_grid: &mut Grid2d<f64>,
+    mut search_grid: &mut Grid2d<f64>,
     timestep: f64,
     max_iterations: usize,
     threshold: f64,

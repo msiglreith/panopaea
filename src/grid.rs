@@ -11,16 +11,13 @@ pub trait Grid<A: LinalgScalar, D> {
         self.view_linear().dot(&rhs.view_linear())
     }
     fn min_max(&self) -> (f64, f64);
-
-    unsafe fn at(&self, usize) -> A;
-    unsafe fn at_mut(&mut self, usize) -> &mut A;
 }
 
 impl<D: Dimension> Grid<f64, D> for ArrayBase<Vec<f64>, D> {
     fn norm_max(&self) -> f64 {
         let mut max = 0.0;
         for x in self.view_linear() {
-            // Using max or abs is incredibly slow!
+            // Using `max()` and `abs()` is incredibly slow!
             max = if *x > max { *x } else if -x > max { -x } else { max };
         }
         max
@@ -39,35 +36,27 @@ impl<D: Dimension> Grid<f64, D> for ArrayBase<Vec<f64>, D> {
         let max = self.iter().fold(f64::NEG_INFINITY, |max, &x| f64::max(max, x));
         (min, max)
     }
-
-    unsafe fn at(&self, idx: usize) -> f64 {
-        *self.as_ptr().offset(idx as isize)
-    }
-
-    unsafe fn at_mut(&mut self, idx: usize) -> &mut f64 {
-        &mut *self.as_mut_ptr().offset(idx as isize)
-    }
 }
 
-pub type Grid2D<T: LinalgScalar> = Array<T, Ix2>;
+pub type Grid2d<T: LinalgScalar> = Array<T, Ix2>;
 
-pub struct MacGrid2D<T: LinalgScalar> {
-    pub x: Grid2D<T>,
-    pub y: Grid2D<T>,
+pub struct MacGrid2d<T: LinalgScalar> {
+    pub x: Grid2d<T>,
+    pub y: Grid2d<T>,
     pub dimension: (usize, usize),
 }
 
-impl<T: LinalgScalar> MacGrid2D<T> {
-    pub fn new(dim: (usize, usize), grid_x: Grid2D<T>, grid_y: Grid2D<T>) -> Self {
+impl<T: LinalgScalar> MacGrid2d<T> {
+    pub fn new(dim: (usize, usize), grid_x: Grid2d<T>, grid_y: Grid2d<T>) -> Self {
         // TODO[prio:high]: check subgrid dimensions
-        MacGrid2D {
+        MacGrid2d {
             x: grid_x,
             y: grid_y,
             dimension: dim,
         }
     }
 
-    pub fn assign(&mut self, rhs: &MacGrid2D<T>) {
+    pub fn assign(&mut self, rhs: &MacGrid2d<T>) {
         // TODO[prio:high]: check dimensions
         self.x.assign(&rhs.x);
         self.y.assign(&rhs.y);
