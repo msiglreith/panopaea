@@ -1,5 +1,6 @@
 
 use ndarray::{Array, ArrayView, ArrayViewMut, Dim, Ix1, Ix2, LinalgScalar};
+use std::ops::Mul;
 
 pub struct DiagonalMatrix<A> {
     data: Vec<A>,
@@ -92,12 +93,13 @@ impl<A> SparseMatrix<A>
     }
 }
 
-impl<A> std::ops::Mul for &SparseMatrix<A>
+impl<'a, A> Mul for &'a SparseMatrix<A>
     where A: LinalgScalar
 {
-    type Output = Array<A, Ix2>
+    type Output = Array<A, Ix2>;
     fn mul(self, rhs: &SparseMatrix<A>) -> Array<A, Ix2> {
-        let mut matrix = SparseMatrix::<A>::new((self.dim.0, rhs.dim.1));
+        /*
+        let mut matrix = Array::<A, Ix2>::new((self.dim.0, rhs.dim.1));
 
         for row in 0 .. matrix.dim.0 {
             for col in 0 .. matrix.dim.1 {
@@ -112,5 +114,8 @@ impl<A> std::ops::Mul for &SparseMatrix<A>
         }
 
         matrix
+        */
+
+        unimplemented!()
     }
 }
