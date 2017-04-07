@@ -18,6 +18,7 @@ pub mod math;
 pub mod particle;
 pub mod solver;
 pub mod sparse;
+pub mod sph;
 pub mod wavelet;
 
 pub use grid::*;

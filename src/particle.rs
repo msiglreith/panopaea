@@ -119,3 +119,95 @@ impl<T: Clone + Default + 'static> Storage for Vec<T> {
         self.extend_from_slice(&vec![T::default(); additional])
     }
 }
+
+pub mod property {
+    //! Common particle properties
+
+    use std::ops::{Deref, DerefMut};
+    use alga::general::Real;
+    use na::{Vector3};
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct Position3d<T: Real>(pub Vector3<T>);
+
+    impl<T: Real> Deref for Position3d<T> {
+        type Target = Vector3<T>;
+        fn deref(&self) -> &Vector3<T> {
+            &self.0
+        }
+    }
+    impl<T: Real> DerefMut for Position3d<T> {
+        fn deref_mut(&mut self) -> &mut Vector3<T> {
+            &mut self.0
+        }
+    }
+
+    impl<T: Real> Default for Position3d<T> {
+        fn default() -> Self {
+            Position3d(Vector3::new(T::zero(), T::zero(), T::zero()))
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct Velocity3d<T: Real>(pub Vector3<T>);
+
+    impl<T: Real> Deref for Velocity3d<T> {
+        type Target = Vector3<T>;
+        fn deref(&self) -> &Vector3<T> {
+            &self.0
+        }
+    }
+    impl<T: Real> DerefMut for Velocity3d<T> {
+        fn deref_mut(&mut self) -> &mut Vector3<T> {
+            &mut self.0
+        }
+    }
+
+    impl<T: Real> Default for Velocity3d<T> {
+        fn default() -> Self {
+            Velocity3d(Vector3::new(T::zero(), T::zero(), T::zero()))
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct Density<T: Real>(pub T);
+
+    impl<T: Real> Deref for Density<T> {
+        type Target = T;
+        fn deref(&self) -> &T {
+            &self.0
+        }
+    }
+    impl<T: Real> DerefMut for Density<T> {
+        fn deref_mut(&mut self) -> &mut T {
+            &mut self.0
+        }
+    }
+
+    impl<T: Real> Default for Density<T> {
+        fn default() -> Self {
+            Density(T::zero())
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct Pressure<T: Real>(pub T);
+
+    impl<T: Real> Deref for Pressure<T> {
+        type Target = T;
+        fn deref(&self) -> &T {
+            &self.0
+        }
+    }
+    impl<T: Real> DerefMut for Pressure<T> {
+        fn deref_mut(&mut self) -> &mut T {
+            &mut self.0
+        }
+    }
+
+    impl<T: Real> Default for Pressure<T> {
+        fn default() -> Self {
+            Pressure(T::zero())
+        }
+    }
+}
