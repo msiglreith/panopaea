@@ -13,6 +13,9 @@ ndarray-parallel = "0.1"
 generic-array = "0.6"
 sprs = { git = "https://github.com/vbarrielle/sprs.git", version = "0.6" }
 mopa = "0.2.2"
+rayon = "0.7.0"
+typenum = "1.7.0"
+cgmath = "0.12"
 
 [dev-dependencies]
 panopaea-util = { path = "util" }

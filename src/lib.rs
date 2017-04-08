@@ -8,8 +8,11 @@ extern crate ndarray_parallel;
 extern crate generic_array;
 #[macro_use]
 extern crate mopa;
+extern crate rayon;
+extern crate typenum;
+extern crate cgmath;
 
-pub extern crate sprs;
+extern crate sprs;
 
 pub mod cg;
 pub mod dec;

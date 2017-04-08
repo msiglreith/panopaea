@@ -30,7 +30,7 @@ impl Particles {
         });
     }
 
-    pub fn read_property<T>(&mut self) -> Option<&[T]>
+    pub fn read_property<T>(&self) -> Option<&[T]>
         where T: Clone + Default + 'static {
         unsafe { self.get_property().map(|property| property.as_slice()) }
     }
@@ -40,7 +40,7 @@ impl Particles {
         unsafe { self.get_property_mut().map(|property| property.as_mut_slice()) }
     }
 
-    pub unsafe fn get_property<T>(&self) -> Option<&Vec<T>>
+    unsafe fn get_property<T>(&self) -> Option<&Vec<T>>
         where T: Clone + Default + 'static
     {
         let type_id = TypeId::of::<T>();
@@ -48,12 +48,12 @@ impl Particles {
                        .and_then(|property| property.downcast_ref())
     }
 
-    pub unsafe fn get_property_mut<T>(&mut self) -> Option<&mut Vec<T>>
+    unsafe fn get_property_mut<T>(&self) -> Option<&mut Vec<T>>
         where T: Clone + Default + 'static
     {
         let type_id = TypeId::of::<T>();
-        self.properties.get_mut(&type_id)
-                       .and_then(|property| property.downcast_mut())
+        self.properties.get(&type_id)
+                       .and_then(|property| (*(property as *const _ as *mut Box<Storage>)).downcast_mut()) // TODO: something safer would be appreciated
     }
 
     pub fn reserve(&mut self, additional: usize) {
@@ -62,16 +62,21 @@ impl Particles {
         }
     }
 
-    pub fn add_particles(&mut self, additional: usize) -> ParticleBuilder {
+    pub fn add_particles(&mut self, additional: usize) -> Builder {
         self.reserve(additional);
         self.num_particles += additional;
-        ParticleBuilder(self)
+        Builder(self)
+    }
+
+    pub fn run<'a, F>(&'a mut self, func: F)
+        where F: FnOnce(Processor<'a>) {
+        func(Processor(self));
     }
 }
 
-pub struct ParticleBuilder<'a>(&'a mut Particles);
+pub struct Builder<'a>(&'a mut Particles);
 
-impl<'a> ParticleBuilder<'a> {
+impl<'a> Builder<'a> {
     pub fn with<T>(&mut self, values: &[T]) -> &mut Self
         where T: Clone + Default + 'static
     {
@@ -85,7 +90,7 @@ impl<'a> ParticleBuilder<'a> {
     }
 }
 
-impl<'a> Drop for ParticleBuilder<'a> {
+impl<'a> Drop for Builder<'a> {
     fn drop(&mut self) {
         // fill remaining properties with default values
         let num_particles = self.0.num_particles;
@@ -97,6 +102,20 @@ impl<'a> Drop for ParticleBuilder<'a> {
         }
     }
 }
+
+pub struct Processor<'a>(&'a mut Particles);
+impl<'a> Processor<'a> {
+    pub fn read_property<T>(&self) -> Option<&[T]>
+        where T: Clone + Default + 'static {
+        unsafe { self.0.get_property().map(|property| property.as_slice()) }
+    }
+
+    pub fn write_property<T>(&self) -> Option<&mut [T]>
+        where T: Clone + Default + 'static {
+        unsafe { self.0.get_property_mut().map(|property| property.as_mut_slice()) }
+    }
+}
+
 
 pub trait Storage : mopa::Any {
     fn len(&self) -> usize;
@@ -117,97 +136,5 @@ impl<T: Clone + Default + 'static> Storage for Vec<T> {
 
     fn fill(&mut self, additional: usize) {
         self.extend_from_slice(&vec![T::default(); additional])
-    }
-}
-
-pub mod property {
-    //! Common particle properties
-
-    use std::ops::{Deref, DerefMut};
-    use alga::general::Real;
-    use na::{Vector3};
-
-    #[derive(Copy, Clone, Debug)]
-    pub struct Position3d<T: Real>(pub Vector3<T>);
-
-    impl<T: Real> Deref for Position3d<T> {
-        type Target = Vector3<T>;
-        fn deref(&self) -> &Vector3<T> {
-            &self.0
-        }
-    }
-    impl<T: Real> DerefMut for Position3d<T> {
-        fn deref_mut(&mut self) -> &mut Vector3<T> {
-            &mut self.0
-        }
-    }
-
-    impl<T: Real> Default for Position3d<T> {
-        fn default() -> Self {
-            Position3d(Vector3::new(T::zero(), T::zero(), T::zero()))
-        }
-    }
-
-    #[derive(Copy, Clone, Debug)]
-    pub struct Velocity3d<T: Real>(pub Vector3<T>);
-
-    impl<T: Real> Deref for Velocity3d<T> {
-        type Target = Vector3<T>;
-        fn deref(&self) -> &Vector3<T> {
-            &self.0
-        }
-    }
-    impl<T: Real> DerefMut for Velocity3d<T> {
-        fn deref_mut(&mut self) -> &mut Vector3<T> {
-            &mut self.0
-        }
-    }
-
-    impl<T: Real> Default for Velocity3d<T> {
-        fn default() -> Self {
-            Velocity3d(Vector3::new(T::zero(), T::zero(), T::zero()))
-        }
-    }
-
-    #[derive(Copy, Clone, Debug)]
-    pub struct Density<T: Real>(pub T);
-
-    impl<T: Real> Deref for Density<T> {
-        type Target = T;
-        fn deref(&self) -> &T {
-            &self.0
-        }
-    }
-    impl<T: Real> DerefMut for Density<T> {
-        fn deref_mut(&mut self) -> &mut T {
-            &mut self.0
-        }
-    }
-
-    impl<T: Real> Default for Density<T> {
-        fn default() -> Self {
-            Density(T::zero())
-        }
-    }
-
-    #[derive(Copy, Clone, Debug)]
-    pub struct Pressure<T: Real>(pub T);
-
-    impl<T: Real> Deref for Pressure<T> {
-        type Target = T;
-        fn deref(&self) -> &T {
-            &self.0
-        }
-    }
-    impl<T: Real> DerefMut for Pressure<T> {
-        fn deref_mut(&mut self) -> &mut T {
-            &mut self.0
-        }
-    }
-
-    impl<T: Real> Default for Pressure<T> {
-        fn default() -> Self {
-            Pressure(T::zero())
-        }
     }
 }

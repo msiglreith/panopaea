@@ -1,5 +1,5 @@
 
-use alga::general::Real;
+use cgmath::BaseFloat as Real;
 use na;
 use ndarray::{Array, Array2, Ix2};
 use std::cmp;
