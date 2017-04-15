@@ -72,6 +72,10 @@ impl Particles {
         where F: FnOnce(Processor<'a>) {
         func(Processor(self));
     }
+
+    pub fn num_particles(&self) -> usize {
+        self.num_particles
+    }
 }
 
 pub struct Builder<'a>(&'a mut Particles);

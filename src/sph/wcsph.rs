@@ -9,7 +9,7 @@ use rayon::prelude::*;
 use super::kernel;
 use super::property::*;
 
-pub fn init<T, N, S>(particles: &mut Particles)
+pub fn init<T, N>(particles: &mut Particles)
     where T: Real + 'static,
           N: Dim<T>,
 {
@@ -19,7 +19,7 @@ pub fn init<T, N, S>(particles: &mut Particles)
     particles.add_property::<Mass<T>>();
 }
 
-pub fn compute_density<T, N, S>(particles: &mut Particles)
+pub fn compute_density<T, N>(particles: &mut Particles)
     where T: Real + 'static,
           N: Dim<T>,
 {

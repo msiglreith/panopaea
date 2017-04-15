@@ -1,3 +1,4 @@
+
 //! Smoothed Particle hydrodynamics
 
 pub mod grid;
@@ -36,7 +37,7 @@ pub mod property {
         where T: Real, N: Dim<T>
     {
         fn default() -> Self {
-            unimplemented!()
+            Position(VectorN::from_elem(T::zero()))
         }
     }
 
@@ -64,7 +65,7 @@ pub mod property {
         where T: Real, N: Dim<T>
     {
         fn default() -> Self {
-            unimplemented!()
+            Velocity(VectorN::from_elem(T::zero()))
         }
     }
 

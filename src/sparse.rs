@@ -1,10 +1,41 @@
 
-use ndarray::{Array, ArrayView, ArrayViewMut, Dim, Ix1, Ix2, LinalgScalar};
-use std::ops::Mul;
+use ndarray::{Array, ArrayView, ArrayViewMut, Dim, Ix1, Ix2, LinalgScalar, Zip};
+use std::ops::{Index, IndexMut, Mul};
 
+/// Diagonal matrix
 pub struct DiagonalMatrix<A> {
     data: Vec<A>,
     dim: usize,
+}
+
+impl<A: LinalgScalar> DiagonalMatrix<A> {
+    pub fn new(dim: usize) -> Self {
+        DiagonalMatrix {
+            data: vec![A::zero(); dim],
+            dim: dim,
+        }
+    }
+}
+
+impl<A: LinalgScalar> DiagonalMatrix<A> {
+    pub fn mul_vec(&self, mut b: ArrayViewMut<A, Ix1>, x: ArrayView<A, Ix1>) {
+        let a: ArrayView<A, Ix1> = self.data.as_slice().into();
+        azip_par!(mut b, x, a in { *b = x * a });
+    }
+}
+
+impl<A> Index<usize> for DiagonalMatrix<A> {
+    type Output = A;
+
+    fn index(&self, elem: usize) -> &A {
+        &self.data[elem]
+    }
+}
+
+impl<A> IndexMut<usize> for DiagonalMatrix<A> {
+    fn index_mut(&mut self, elem: usize) -> &mut A {
+        &mut self.data[elem]
+    }
 }
 
 /// Sparse matrix in compressed sparse row format
@@ -24,6 +55,10 @@ impl<A> SparseMatrix<A> {
             row_indices: vec![0; dim.0 + 1],
             dim: dim,
         }
+    }
+
+    pub fn dim(&self) -> (usize, usize) {
+        self.dim
     }
 
     pub fn insert(&mut self, index: (usize, usize), elem: A) {
@@ -93,29 +128,28 @@ impl<A> SparseMatrix<A>
     }
 }
 
-impl<'a, A> Mul for &'a SparseMatrix<A>
+impl<A> Index<usize> for SparseMatrix<A> {
+    type Output = A;
+    fn index(&self, index: usize) -> &A {
+        &self.data[index]
+    }
+}
+
+impl<A> IndexMut<usize> for SparseMatrix<A> {
+    fn index_mut(&mut self, index: usize) -> &mut A {
+        &mut self.data[index]
+    }
+}
+
+impl<A> Mul for DiagonalMatrix<A>
     where A: LinalgScalar
 {
-    type Output = Array<A, Ix2>;
-    fn mul(self, rhs: &SparseMatrix<A>) -> Array<A, Ix2> {
-        /*
-        let mut matrix = Array::<A, Ix2>::new((self.dim.0, rhs.dim.1));
-
-        for row in 0 .. matrix.dim.0 {
-            for col in 0 .. matrix.dim.1 {
-                let start = self.row_indices[row];
-                let end = self.row_indices[row + 1];
-
-                let val = A::zero(); 
-                // TODO
-
-                matrix.insert((row, col), val);
-            }
+    type Output = DiagonalMatrix<A>;
+    fn mul(mut self, rhs: DiagonalMatrix<A>) -> DiagonalMatrix<A> {
+        for i in 0..self.dim {
+            self[i] = self[i] * rhs[i]
         }
 
-        matrix
-        */
-
-        unimplemented!()
+        self
     }
 }
