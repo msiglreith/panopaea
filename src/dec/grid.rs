@@ -1,5 +1,5 @@
 
-use math::AsLinearView;
+use math::LinearView;
 use ndarray::{Array, ArrayView, ArrayViewMut, Ix1, Ix2, LinalgScalar, Zip};
 use sparse::{DiagonalMatrix, SparseMatrix};
 use std::ops::Neg;
@@ -7,10 +7,18 @@ use super::manifold::Manifold2d;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Grid2d {
-    pub dim: (usize, usize),
+    dim: (usize, usize),
 }
 
 impl Grid2d {
+    pub fn new(dim: (usize, usize)) -> Self {
+        Grid2d { dim: dim }
+    }
+
+    pub fn dim(&self) -> (usize, usize) {
+        self.dim
+    }
+
     pub fn num_vertices(&self) -> usize {
         (self.dim.0 + 1) * (self.dim.1 + 1)
     }
@@ -26,7 +34,7 @@ impl Grid2d {
 
 #[derive(Debug)]
 pub struct Staggered2d<T> {
-    pub data: Array<T, Ix1>,
+    data: Array<T, Ix1>,
     dim: (usize, usize),
 }
 
@@ -50,7 +58,7 @@ impl<T> Staggered2d<T> {
     }
 }
 
-impl<T> AsLinearView<T> for Staggered2d<T> {
+impl<T> LinearView<T> for Staggered2d<T> {
     fn view_linear(&self) -> ArrayView<T, Ix1> {
         self.data.view()
     }

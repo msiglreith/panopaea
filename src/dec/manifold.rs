@@ -1,17 +1,17 @@
 
-use math::AsLinearView;
+use math::LinearView;
 use sparse::{DiagonalMatrix, SparseMatrix};
 
 pub trait Manifold2d<T> {
     /// Storage type for 0-simplices (vertex).
     /// A differential primal 0-form is stored for each 0-simplex.
-    type Simplex0: AsLinearView<T>;
+    type Simplex0: LinearView<T>;
     /// Storage type for 1-simplices (edge).
     /// A differential primal 1-form is stored for each 1-simplex.
-    type Simplex1: AsLinearView<T>;
+    type Simplex1: LinearView<T>;
     /// Storage type for 2-simplices (face).
     /// A differential primal 2-form is stored for each 2-simplex.
-    type Simplex2: AsLinearView<T>;
+    type Simplex2: LinearView<T>;
 
     ///
     fn new_simplex_0(&self) -> Self::Simplex0;

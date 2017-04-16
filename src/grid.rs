@@ -1,27 +1,14 @@
 
-use math::AsLinearView;
+use math::LinearView;
 use ndarray::{ArrayBase, ArrayView, ArrayViewMut, Dimension, DataOwned};
 use ndarray::{Array, Ix1, Ix2, LinalgScalar};
 use std::f64;
 
-pub trait Grid<A: LinalgScalar, D> : AsLinearView<A> {
-    fn norm_max(&self) -> A;
-    fn dot_linear<Rhs: Grid<A, D>>(&self, rhs: &Rhs) -> A {
-        self.view_linear().dot(&rhs.view_linear())
-    }
+pub trait Grid<A: LinalgScalar, D> : LinearView<A> {
     fn min_max(&self) -> (f64, f64);
 }
 
 impl<D: Dimension> Grid<f64, D> for ArrayBase<Vec<f64>, D> {
-    fn norm_max(&self) -> f64 {
-        let mut max = 0.0;
-        for x in self.view_linear() {
-            // Using `max()` and `abs()` is incredibly slow!
-            max = if *x > max { *x } else if -x > max { -x } else { max };
-        }
-        max
-    }
-
     fn min_max(&self) -> (f64, f64) {
         let min = self.iter().fold(f64::INFINITY, |min, &x| f64::min(min, x));
         let max = self.iter().fold(f64::NEG_INFINITY, |max, &x| f64::max(max, x));
