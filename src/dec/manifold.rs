@@ -1,17 +1,18 @@
 
 use math::LinearView;
 use sparse::{DiagonalMatrix, SparseMatrix};
+use std::marker::PhantomData;
 
 pub trait Manifold2d<T> {
     /// Storage type for 0-simplices (vertex).
     /// A differential primal 0-form is stored for each 0-simplex.
-    type Simplex0: LinearView<T>;
+    type Simplex0: LinearView<Elem = T>;
     /// Storage type for 1-simplices (edge).
     /// A differential primal 1-form is stored for each 1-simplex.
-    type Simplex1: LinearView<T>;
+    type Simplex1: LinearView<Elem = T>;
     /// Storage type for 2-simplices (face).
     /// A differential primal 2-form is stored for each 2-simplex.
-    type Simplex2: LinearView<T>;
+    type Simplex2: LinearView<Elem = T>;
 
     ///
     fn new_simplex_0(&self) -> Self::Simplex0;
@@ -57,4 +58,9 @@ pub trait Manifold2d<T> {
     fn hodge_0_dual_matrix(&self) -> DiagonalMatrix<T>;
     fn hodge_1_dual_matrix(&self) -> DiagonalMatrix<T>;
     fn hodge_2_dual_matrix(&self) -> DiagonalMatrix<T>;
+}
+
+pub struct Laplacian<'a, T, M: Manifold2d<T> + 'a> {
+    pub manifold: &'a M,
+    _marker: PhantomData<*const T>
 }

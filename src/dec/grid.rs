@@ -7,7 +7,7 @@ use super::manifold::Manifold2d;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Grid2d {
-    dim: (usize, usize),
+    dim: (usize, usize), // (y, x)
 }
 
 impl Grid2d {
@@ -35,7 +35,7 @@ impl Grid2d {
 #[derive(Debug)]
 pub struct Staggered2d<T> {
     data: Array<T, Ix1>,
-    dim: (usize, usize),
+    dim: (usize, usize), // (y, x)
 }
 
 impl<T> Staggered2d<T> {
@@ -43,22 +43,25 @@ impl<T> Staggered2d<T> {
         self.dim
     }
 
+    /// (vertical, horizontal)
     pub fn split(&self) -> (ArrayView<T, Ix2>, ArrayView<T, Ix2>) {
-        let dim_y = (self.dim.0 + 1) * self.dim.1;
+        let size_0 = self.dim.1 * (self.dim.0 + 1);
 
-        (unsafe { ArrayView::<T, Ix2>::from_shape_ptr((self.dim.1, self.dim.0 + 1), self.data.as_ptr()) },
-         unsafe { ArrayView::<T, Ix2>::from_shape_ptr((self.dim.1 + 1, self.dim.0), self.data.as_ptr().offset(dim_y as isize)) })
+        (unsafe { ArrayView::<T, Ix2>::from_shape_ptr((self.dim.0 + 1, self.dim.1), self.data.as_ptr()) },
+         unsafe { ArrayView::<T, Ix2>::from_shape_ptr((self.dim.0, self.dim.1 + 1), self.data.as_ptr().offset(size_0 as isize)) })
     }
 
+    /// (vertical, horizontal)
     pub fn split_mut(&mut self) -> (ArrayViewMut<T, Ix2>, ArrayViewMut<T, Ix2>) {
-        let dim_y = (self.dim.0 + 1) * self.dim.1;
+        let size_0 = self.dim.1 * (self.dim.0 + 1);
 
-        (unsafe { ArrayViewMut::<T, Ix2>::from_shape_ptr((self.dim.1, self.dim.0 + 1), self.data.as_mut_ptr()) },
-         unsafe { ArrayViewMut::<T, Ix2>::from_shape_ptr((self.dim.1 + 1, self.dim.0), self.data.as_mut_ptr().offset(dim_y as isize)) })
+        (unsafe { ArrayViewMut::<T, Ix2>::from_shape_ptr((self.dim.0 + 1, self.dim.1), self.data.as_mut_ptr()) },
+         unsafe { ArrayViewMut::<T, Ix2>::from_shape_ptr((self.dim.0, self.dim.1 + 1), self.data.as_mut_ptr().offset(size_0 as isize)) })
     }
 }
 
-impl<T> LinearView<T> for Staggered2d<T> {
+impl<T> LinearView for Staggered2d<T> {
+    type Elem = T;
     fn view_linear(&self) -> ArrayView<T, Ix1> {
         self.data.view()
     }
@@ -101,8 +104,8 @@ impl<T> Manifold2d<T> for Grid2d
 
         azip_par!(
             mut edge (&mut edges.1),
-            v0 (vertices.slice(s![.., ..-1])),
-            v1 (vertices.slice(s![.., 1..]))
+            v0 (vertices.slice(s![..-1, ..])),
+            v1 (vertices.slice(s![1.., ..]))
          in { *edge = v1 - v0; });
     }
 
@@ -290,6 +293,7 @@ impl<T> Manifold2d<T> for Grid2d
             }
         }
 
+        // vertical edges
         for y in 0..h {
             for x in 0..(w+1) {
                 let v_idx = y*(w+1) + x;

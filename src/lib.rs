@@ -19,6 +19,7 @@ pub mod dec;
 pub mod grid;
 pub mod math;
 pub mod particle;
+pub mod pcg;
 pub mod solver;
 pub mod sparse;
 pub mod sph;

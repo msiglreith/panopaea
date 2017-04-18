@@ -1,6 +1,6 @@
 
 use grid::{Grid, Grid2d, MacGrid2d};
-use math::{LinearView, LinearViewReal};
+use math::{LinearView, LinearViewReal, Real};
 use ndarray;
 use ndarray_parallel::prelude::*;
 

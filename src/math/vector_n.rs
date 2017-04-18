@@ -40,13 +40,13 @@ impl<S: Real, N: Dim<S>> MetricSpace for VectorN<S, N> {
 impl<S: Real> Deref for VectorN<S, U2> {
     type Target = [S];
     fn deref(&self) -> &Self::Target {
-        self.as_ref()
+        self.0.as_ref()
     }
 }
 
 impl<S: Real> DerefMut for VectorN<S, U2> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.as_mut()
+        self.0.as_mut()
     }
 }
 

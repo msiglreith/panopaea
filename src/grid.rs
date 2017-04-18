@@ -4,7 +4,7 @@ use ndarray::{ArrayBase, ArrayView, ArrayViewMut, Dimension, DataOwned};
 use ndarray::{Array, Ix1, Ix2, LinalgScalar};
 use std::f64;
 
-pub trait Grid<A: LinalgScalar, D> : LinearView<A> {
+pub trait Grid<A: LinalgScalar, D> : LinearView<Elem = A> {
     fn min_max(&self) -> (f64, f64);
 }
 
