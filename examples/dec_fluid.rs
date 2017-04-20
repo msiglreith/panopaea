@@ -3,23 +3,28 @@ extern crate panopaea;
 extern crate panopaea_util as util;
 extern crate nalgebra as na;
 extern crate ndarray;
+extern crate stopwatch;
 
 use ndarray::Array2;
+use panopaea::pcg;
 use panopaea::math::{self, vec2};
 use panopaea::dec::grid::{Grid2d, Staggered2d};
 use panopaea::dec::manifold::Manifold2d;
 use panopaea::math::LinearView;
 use std::cmp;
+use stopwatch::Stopwatch;
 
 fn main() {
-    let grid = Grid2d::new((32, 64));
+    let grid = Grid2d::new((128, 128));
 
     let mut vel = <Grid2d as Manifold2d<f64>>::new_simplex_1(&grid);
     let mut pressure = <Grid2d as Manifold2d<f64>>::new_simplex_2(&grid);
     let mut density = <Grid2d as Manifold2d<f64>>::new_simplex_2(&grid);
 
     let mut vel_temp = <Grid2d as Manifold2d<f64>>::new_simplex_1(&grid);
+    let mut vel_primal_temp = <Grid2d as Manifold2d<f64>>::new_simplex_1(&grid);
     let mut temp = <Grid2d as Manifold2d<f64>>::new_simplex_2(&grid);
+    let mut pressure_temp = <Grid2d as Manifold2d<f64>>::new_simplex_2(&grid);
 
     // conjugate gradient
     let mut auxiliary = <Grid2d as Manifold2d<f64>>::new_simplex_2(&grid);
@@ -34,13 +39,15 @@ fn main() {
         {
             let mut d = density.view_mut();
             let (mut vy, mut vx) = vel.split_mut();
-            for y in 0 .. 10 {
-                for x in 14 .. 30 {
+            for y in 5 .. 20 {
+                for x in 54 .. 64 {
                     d[(y, x)] = 1.0;
-                    vy[(y, x)] = 5.0;
+                    vy[(y, x)] = 20.0;
                 }
             }
         }
+
+        // println!("pre vel: {:#?}", &vel.split());
 
         advect(&mut temp, &density, timestep, &vel);
         advect_mac(&mut vel_temp, &vel, timestep, &vel);
@@ -48,17 +55,82 @@ fn main() {
         density.assign(&temp);
         vel.view_linear_mut().assign(&vel_temp.view_linear());
 
-        if true {
+        // println!("compress vel: {:#?}", &vel.split());
+
+        vel_temp.view_linear_mut().fill(0.0);
+        temp.view_linear_mut().fill(0.0);
+
+        // calculate -div
+        grid.hodge_1_dual(&mut vel_temp, &vel);
+        grid.derivative_1_primal(&mut temp, &mut vel_temp);
+        for x in temp.iter_mut() {
+            *x = -*x;
+        }
+
+        // println!("div {:#?}", &temp);
+
+        let sw = Stopwatch::start_new();
+
+        vel_temp.view_linear_mut().fill(0.0);
+
+        pcg::precond_conjugate_gradient(
+            &(), &mut pressure, &temp,
+            100, threshold,
+            &mut residual, &mut auxiliary, &mut search,
+            |mut laplacian, p| {
+                grid.hodge_2_primal(&mut pressure_temp, &p);
+                grid.derivative_0_dual(&mut vel_temp, &pressure_temp);
+                grid.hodge_1_dual(&mut vel_primal_temp, &vel_temp);
+                grid.derivative_1_primal(&mut laplacian, &vel_primal_temp);
+                for x in laplacian.iter_mut() {
+                    *x = *x * timestep;
+                }
+            });
+
+        println!("{} ms", sw.elapsed_ms());
+
+        // println!("pressure: {:#?}", &pressure);
+
+        // project velocity
+        grid.hodge_2_primal(&mut pressure_temp, &pressure);
+        grid.derivative_0_dual(&mut vel_temp, &pressure_temp);
+
+        /*
+        for v in vel_temp.view_linear_mut() {
+            *v *= timestep;
+        }
+        */
+
+        vel.view_linear_mut().scaled_add(timestep, &vel_temp.view_linear());
+
+        {
+            let (mut vy, mut vx) = vel.split_mut();
+            let max_x = vx.dim().1 - 1;
+            let max_y = vy.dim().0 - 1;
+            for y in 0 .. vx.dim().0 {
+                vx[(y, 0)] = 0.0;
+                vx[(y, max_x)] = 0.0;
+            }
+
+            for x in 0 .. vy.dim().1 {
+                vy[(0, x)] = 0.0;
+                vy[(max_y, x)] = 0.0;
+            }
+        }
+
+        // println!("vel: {:#?}", &vel);
+
+        if i % 10 == 0 {
             let (img_data, dim) = {
                 let mut data = Vec::new();
-                // let (_, density) = vel.split();
+                // let (density, _) = vel.split();
                 for y in 0 .. density.dim().0 {
                     for x in 0 .. density.dim().1 {
                         let val = &density[(y, x)];
                         data.push([
-                            util::imgproc::transfer(val, 0.0, 1.0),
-                            util::imgproc::transfer(val, 0.0, 1.0),
-                            util::imgproc::transfer(val, 0.0, 1.0),
+                            util::imgproc::transfer(val, -2.0, 2.0),
+                            util::imgproc::transfer(val, -2.0, 2.0),
+                            util::imgproc::transfer(val, -2.0, 2.0),
                         ]);
                     }
                 }

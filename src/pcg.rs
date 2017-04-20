@@ -13,7 +13,6 @@ impl<A: Clone, L: LinearView<Elem = A>> Preconditioner<L> for () {
 
 pub fn precond_conjugate_gradient<L, O, P, T>(
     preconditioner: &P,
-    A: &O,
     x: &mut L,
     b: &L,
     max_iterations: usize,
@@ -21,10 +20,11 @@ pub fn precond_conjugate_gradient<L, O, P, T>(
     residual: &mut L,
     mut auxiliary: &mut L,
     search: &mut L,
+    mut A: O,
 ) where P: Preconditioner<L>,
         T: Real,
         L: LinearViewReal<T>,
-        O: MulOut<RHS = L, Output = L>,
+        O: FnMut(&mut L, &L),
 { 
     // Conjugate gradient
 
@@ -46,13 +46,17 @@ pub fn precond_conjugate_gradient<L, O, P, T>(
         let mut sigma = auxiliary.dot_linear(residual);
 
         'iter: for i in 0..max_iterations {
-            A.mul_out(&mut auxiliary, search); // apply_sparse_matrix(auxiliary, search, diag, plus_x, plus_y, timestep);
+            // println!("residual: {:#?}", &residual.view_linear());
+            // println!("search: {:#?}", &search.view_linear());
+            A(&mut auxiliary, search); // apply_sparse_matrix(auxiliary, search, diag, plus_x, plus_y, timestep);
+            // println!("aux: {:#?}", &auxiliary.view_linear());
             let alpha = sigma/auxiliary.dot_linear(search);
             
             x.view_linear_mut().scaled_add(alpha, &search.view_linear());
             residual.view_linear_mut().scaled_add(-alpha, &auxiliary.view_linear());
 
             residual_error = residual.norm_max();
+            // println!("{:?}", residual_error);
             if residual_error < threshold {
                 println!("Iterations {:?}", i);
                 break 'iter;
@@ -62,6 +66,8 @@ pub fn precond_conjugate_gradient<L, O, P, T>(
             
             let sigma_new = auxiliary.dot_linear(residual);
             let beta = sigma_new/sigma;
+
+            // println!("beta: {:#?}", beta);
 
             let mut search = search.view_linear_mut();
             let auxiliary = auxiliary.view_linear();

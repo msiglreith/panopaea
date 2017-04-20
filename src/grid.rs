@@ -18,6 +18,7 @@ impl<D: Dimension> Grid<f64, D> for ArrayBase<Vec<f64>, D> {
 
 pub type Grid2d<T: LinalgScalar> = Array<T, Ix2>;
 
+#[derive(Debug)]
 pub struct MacGrid2d<T: LinalgScalar> {
     pub x: Grid2d<T>,
     pub y: Grid2d<T>,

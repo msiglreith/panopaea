@@ -1,6 +1,4 @@
 
-use ndarray::Zip;
-
 #[macro_export]
 /// Array zip macro (parallel)
 /// Based on the ndarray::azip macro but with parallel apply!

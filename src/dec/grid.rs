@@ -109,25 +109,23 @@ impl<T> Manifold2d<T> for Grid2d
          in { *edge = v1 - v0; });
     }
 
-    fn derivative_0_dual(&self, edges: &mut Self::Simplex1, vertices: &Self::Simplex2) {
+    fn derivative_0_dual(&self, edges: &mut Self::Simplex1, faces: &Self::Simplex2) {
         let mut edges = edges.split_mut();
+
+        // vertical
+        azip_par!(
+            mut edge (edges.0.slice_mut(s![1..-1, ..])),
+            f0 (faces.slice(s![..-1, ..])),
+            f1 (faces.slice(s![1.., ..]))
+         in { *edge = -(f1 - f0); });
 
         // horizontal
         azip_par!(
-            mut edge (edges.0.slice_mut(s![..1, ..])),
-            vertex (vertices.slice(s![..1, ..]))
-         in { *edge = vertex; });
-
-        // TODO:
-
-        Zip::from(edges.0.slice_mut(s![-1.., ..]))
-            .and(vertices.slice(s![-1.., ..]))
-            .apply(|edge, &vertex| {
-                *edge = -vertex;
-            });
-
-        // vertical
-        // TODO:
+            mut edge (edges.1.slice_mut(s![.., 1..-1])),
+            f0 (faces.slice(s![.., ..-1])),
+            f1 (faces.slice(s![.., 1..]))
+         in { *edge = (f0 - f1); });
+        
     }
 
     fn derivative_1_primal(&self, faces: &mut Self::Simplex2, edges: &Self::Simplex1) {
@@ -139,7 +137,7 @@ impl<T> Manifold2d<T> for Grid2d
             bottom (edges.0.slice(s![ 1..,   ..])),
             left   (edges.1.slice(s![  .., ..-1])),
             right  (edges.1.slice(s![  .., 1..]))
-         in { *face = bottom - top + left - right; });
+         in { *face = -bottom + top - left + right; });
     }
 
     fn derivative_1_dual(&self, faces: &mut Self::Simplex0, edges: &Self::Simplex1) {
@@ -247,7 +245,7 @@ impl<T> Manifold2d<T> for Grid2d
         Zip::from(&mut dual.1)
             .and(&primal.1)
             .apply(|dual, &primal| {
-                *dual = primal;
+                *dual = -primal;
             });
     }
 
@@ -264,7 +262,7 @@ impl<T> Manifold2d<T> for Grid2d
         Zip::from(&mut primal.1)
             .and(&dual.1)
             .apply(|primal, &dual| {
-                *primal = -dual;
+                *primal = dual;
             });
     }
 
@@ -340,8 +338,114 @@ impl<T> Manifold2d<T> for Grid2d
 
 #[cfg(test)]
 mod tests {
+    use ndarray::*;
+    use super::*;
+
     #[test]
     fn grid_2d_divergence() {
-        // TODO: apply d1_primal * h1_dual
+        let grid = Grid2d::new((5, 5));
+        let mut vel = <Grid2d as Manifold2d<f32>>::new_simplex_1(&grid);
+        let velocities_y = &[
+            [0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 1.8, 1.8, 0.0, 0.0],
+            [0.0, 2.0, 2.0, 0.0, 0.0],
+            [0.0, 0.8, 0.8, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0],
+        ];
+
+        let velocities_x = &[
+            [0.0, 0.7, 0.0, -0.7, 0.0, 0.0],
+            [0.0, 0.1, 0.0, -0.1, 0.0, 0.0],
+            [0.0, -0.7, 0.0, 0.7, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        ];
+
+        {
+            let (mut vy, mut vx) = vel.split_mut();
+            for ((y, x), v) in vy.indexed_iter_mut() {
+                *v = velocities_y[y][x];
+            }
+            for ((y, x), v) in vx.indexed_iter_mut() {
+                *v = velocities_x[y][x];
+            }
+        }
+
+        let div_ref = [
+            0.7, 1.1, 1.1, 0.7, 0.0,
+            0.1, 0.1, 0.1, 0.1, 0.0,
+            -0.7, -0.5, -0.5, -0.7, 0.0,
+            0.0, -0.8, -0.8, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0,
+        ];
+
+        let mut vel_primal = <Grid2d as Manifold2d<f32>>::new_simplex_1(&grid);
+        let mut divergence = <Grid2d as Manifold2d<f32>>::new_simplex_2(&grid);
+        grid.hodge_1_dual(&mut vel_primal, &mut vel);
+        grid.derivative_1_primal(&mut divergence, &vel_primal);
+
+        let div = ArrayView::from_shape((5, 5), &div_ref).unwrap();
+        let eps = 1.0e-3;
+
+        let mut equal = true;
+        for (&div, &reference) in divergence.iter().zip(div.iter()) {
+            if !equal { break }
+            equal = (div - reference).abs() < eps;
+        }
+
+        assert!(equal, "{:#?} approx eq {:#?} (eps = {:#?})", &divergence, &div, eps);
+    }
+
+    #[test]
+    fn grid_2d_laplacian() {
+        let grid = Grid2d::new((3, 3));
+
+        let faces_primal = arr2(&[
+            [-0.0, -3.0, -0.0],
+            [-0.0, 2.0, 6.0],
+            [1.0, -0.0, -0.0],
+        ]);
+
+        let mut faces_dual = <Grid2d as Manifold2d<f64>>::new_simplex_2(&grid);
+        let mut edges_dual = <Grid2d as Manifold2d<f64>>::new_simplex_1(&grid);
+        let mut edges_primal = <Grid2d as Manifold2d<f64>>::new_simplex_1(&grid);
+        let mut laplacian = <Grid2d as Manifold2d<f64>>::new_simplex_2(&grid);
+
+        grid.hodge_2_primal(&mut faces_dual, &faces_primal);
+        grid.derivative_0_dual(&mut edges_dual, &faces_dual);
+        grid.hodge_1_dual(&mut edges_primal, &edges_dual);
+        grid.derivative_1_primal(&mut laplacian, &edges_primal);
+
+        let laplacian_ref = [3.0, -11.0, -3.0, -3.0, 5.0, 16.0, 2.0, -3.0, -6.0];
+        let laplac = ArrayView::from_shape((3, 3), &laplacian_ref).unwrap();
+        let eps = 1.0e-3;
+
+        let mut equal = true;
+        for (&val, &reference) in laplacian.iter().zip(laplac.iter()) {
+            if !equal { break }
+            equal = (val - reference).abs() < eps;
+        }
+
+        assert!(equal, "{:#?} approx eq {:#?} (eps = {:#?})", &laplacian, &laplac, eps);
+    }
+
+    #[test]
+    fn grid_2d_gradient() {
+        let grid = Grid2d::new((3, 3));
+
+        let faces_dual = arr2(&[
+            [-0.0, -3.0, -0.0],
+            [-0.0, 2.0, 6.0],
+            [1.0, -0.0, -0.0],
+        ]);
+
+        let mut gradient = <Grid2d as Manifold2d<f64>>::new_simplex_1(&grid);
+
+        grid.derivative_0_dual(&mut gradient, &faces_dual);
+
+        let gradient_ref = [3.0, -11.0, -3.0, -3.0, 5.0, 16.0, 2.0, -3.0, -6.0];
+        let grad = ArrayView::from_shape((3, 3), &gradient_ref).unwrap();
+        let eps = 1.0e-3;
     }
 }

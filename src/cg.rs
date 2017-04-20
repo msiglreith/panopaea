@@ -188,6 +188,8 @@ pub fn conjugate_gradient<P: Preconditioner>(
     threshold: f64,
 ) {
     build_div(div, vel);
+
+    // println!("div: {:#?}", &div);
     
     // Conjugate gradient
     // Returns a pressure field to make the velocity field divergence-free
@@ -210,13 +212,18 @@ pub fn conjugate_gradient<P: Preconditioner>(
         let mut sigma = auxiliary_grid.dot_linear(residual);
 
         'iter: for i in 0..max_iterations {
+            // println!("residual: {:#?}", &residual.view_linear());
+            // println!("search {:#?}", &search_grid);
             apply_sparse_matrix(auxiliary_grid, search_grid, diag, plus_x, plus_y, timestep);
+            // println!("aux {:#?}", &auxiliary_grid);
+            // println!("aux: {:#?}", &auxiliary_grid.view_linear());
             let alpha = sigma/auxiliary_grid.dot_linear(search_grid);
             
             pressure.scaled_add( alpha, search_grid);
             residual.scaled_add(-alpha, auxiliary_grid);
 
             residual_error = residual.norm_max();
+            // println!("{:?}", residual_error);
             if residual_error < threshold {
                 println!("Iterations {:?}", i);
                 break 'iter;
@@ -226,6 +233,8 @@ pub fn conjugate_gradient<P: Preconditioner>(
             
             let sigma_new = auxiliary_grid.dot_linear(residual);
             let beta = sigma_new/sigma;
+
+            // println!("beta: {:#?}", beta);
 
             let mut search = search_grid.view_linear_mut();
             let auxiliary = auxiliary_grid.view_linear();

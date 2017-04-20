@@ -76,7 +76,7 @@ impl<A> SparseMatrix<A> {
                 // insert new element
                 self.data.insert(start + pos, elem);
                 self.col_indices.insert(start + pos, index.1);
-                for i in (index.0 + 1 .. self.row_indices.len()) {
+                for i in index.0 + 1 .. self.row_indices.len() {
                     self.row_indices[i] += 1;
                 }
             }

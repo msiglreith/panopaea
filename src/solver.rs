@@ -155,6 +155,8 @@ pub fn project_velocity(vel: &mut MacGrid2d<f64>, pressure: &Grid2d<f64>, timest
         }
     }
 
+    // println!("{:#?}", &pressure);
+
     for y in 0 .. vel.dimension.0 {
         vel.x[(y, 0)] = 0.0;
         vel.x[(y, vel.dimension.1)] = 0.0;
