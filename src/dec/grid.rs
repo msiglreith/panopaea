@@ -3,34 +3,8 @@ use math::LinearView;
 use ndarray::{Array, ArrayView, ArrayViewMut, Ix1, Ix2, LinalgScalar, Zip};
 use sparse::{DiagonalMatrix, SparseMatrix};
 use std::ops::Neg;
+use domain::Grid2d;
 use super::manifold::Manifold2d;
-
-#[derive(Copy, Clone, Debug)]
-pub struct Grid2d {
-    dim: (usize, usize), // (y, x)
-}
-
-impl Grid2d {
-    pub fn new(dim: (usize, usize)) -> Self {
-        Grid2d { dim: dim }
-    }
-
-    pub fn dim(&self) -> (usize, usize) {
-        self.dim
-    }
-
-    pub fn num_vertices(&self) -> usize {
-        (self.dim.0 + 1) * (self.dim.1 + 1)
-    }
-
-    pub fn num_edges(&self) -> usize {
-        (self.dim.0 + 1) * self.dim.1 + self.dim.0 * (self.dim.1 + 1)
-    }
-
-    pub fn num_faces(&self) -> usize {
-        self.dim.0 * self.dim.1
-    }
-}
 
 #[derive(Debug)]
 pub struct Staggered2d<T> {
@@ -78,19 +52,31 @@ impl<T> Manifold2d<T> for Grid2d
     type Simplex1 = Staggered2d<T>;
     type Simplex2 = Array<T, Ix2>;
 
+    fn num_elem_0(&self) -> usize {
+        (self.dim().0 + 1) * (self.dim().1 + 1)
+    }
+
+    fn num_elem_1(&self) -> usize {
+        (self.dim().0 + 1) * self.dim().1 + self.dim().0 * (self.dim().1 + 1)
+    }
+
+    fn num_elem_2(&self) -> usize {
+        self.dim().0 * self.dim().1
+    }
+
     fn new_simplex_0(&self) -> Self::Simplex0 {
-        Array::from_elem((self.dim.0 + 1, self.dim.1 + 1), T::zero()) // vertices
+        Array::from_elem((self.dim().0 + 1, self.dim().1 + 1), T::zero()) // vertices
     }
 
     fn new_simplex_1(&self) -> Self::Simplex1 {
         Staggered2d {
-            data: Array::from_elem((self.dim.0 + 1) * self.dim.1 + self.dim.0 * (self.dim.1 + 1), T::zero()),
-            dim: self.dim,
+            data: Array::from_elem((self.dim().0 + 1) * self.dim().1 + self.dim().0 * (self.dim().1 + 1), T::zero()),
+            dim: self.dim(),
         }
     }
 
     fn new_simplex_2(&self) -> Self::Simplex2 {
-        Array::from_elem((self.dim.0, self.dim.1), T::zero()) // faces
+        Array::from_elem((self.dim().0, self.dim().1), T::zero()) // faces
     }
     
     fn derivative_0_primal(&self, edges: &mut Self::Simplex1, vertices: &Self::Simplex0) {
@@ -124,7 +110,7 @@ impl<T> Manifold2d<T> for Grid2d
             mut edge (edges.1.slice_mut(s![.., 1..-1])),
             f0 (faces.slice(s![.., ..-1])),
             f1 (faces.slice(s![.., 1..]))
-         in { *edge = (f0 - f1); });
+         in { *edge = f0 - f1; });
         
     }
 
@@ -147,7 +133,7 @@ impl<T> Manifold2d<T> for Grid2d
     fn hodge_0_primal(&self, dual: &mut Self::Simplex0, primal: &Self::Simplex0) {
         let two = T::one() + T::one();
         let four = two + two;
-        let (h, w) = self.dim;
+        let (h, w) = self.dim();
 
         // corners
         dual[(0, 0)]     = primal[(0, 0)] / four;
@@ -191,7 +177,7 @@ impl<T> Manifold2d<T> for Grid2d
     fn hodge_2_dual(&self, primal: &mut Self::Simplex0, dual: &Self::Simplex0) {
         let two = T::one() + T::one();
         let four = two + two;
-        let (h, w) = self.dim;
+        let (h, w) = self.dim();
 
         // corners
         primal[(0, 0)]     = dual[(0, 0)] * four;
@@ -275,9 +261,12 @@ impl<T> Manifold2d<T> for Grid2d
     }
 
     fn derivative_0_primal_matrix(&self) -> SparseMatrix<T> {
-        let mut matrix = SparseMatrix::<T>::new((self.num_edges(), self.num_vertices()));
+        unimplemented!()
+        /*
+        let dim = (self.num_elem_1(), self.num_elem_0());
+        let mut matrix = SparseMatrix::<T>::new(dim);
 
-        let (h, w) = self.dim;
+        let (h, w) = self.dim();
         let one = T::one();
         let mut idx = 0;
 
@@ -302,6 +291,7 @@ impl<T> Manifold2d<T> for Grid2d
         }
 
         matrix
+        */
     }
 
     fn derivative_0_dual_matrix(&self) -> SparseMatrix<T> {

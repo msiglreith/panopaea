@@ -16,6 +16,7 @@ extern crate sprs;
 
 pub mod cg;
 pub mod dec;
+pub mod domain;
 pub mod grid;
 pub mod math;
 pub mod particle;
@@ -23,6 +24,7 @@ pub mod pcg;
 pub mod solver;
 pub mod sparse;
 pub mod sph;
+pub mod vortex_filaments;
 pub mod wavelet;
 
 pub use grid::*;

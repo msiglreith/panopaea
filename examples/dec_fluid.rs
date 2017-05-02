@@ -8,7 +8,8 @@ extern crate stopwatch;
 use ndarray::Array2;
 use panopaea::pcg;
 use panopaea::math::{self, vec2};
-use panopaea::dec::grid::{Grid2d, Staggered2d};
+use panopaea::domain::Grid2d;
+use panopaea::dec::grid::Staggered2d;
 use panopaea::dec::manifold::Manifold2d;
 use panopaea::math::LinearView;
 use std::cmp;
@@ -62,6 +63,16 @@ fn main() {
 
         // calculate -div
         grid.hodge_1_dual(&mut vel_temp, &vel);
+        {
+            let (mut vy, mut vx) = vel_temp.split_mut();
+            for y in 70 .. 80 {
+                for x in 50 .. 70 {
+                    vy[(y, x)] = 0.0;
+                    vx[(y, x)] = 0.0;
+                }
+            }
+        }
+
         grid.derivative_1_primal(&mut temp, &mut vel_temp);
         for x in temp.iter_mut() {
             *x = -*x;
@@ -80,6 +91,17 @@ fn main() {
             |mut laplacian, p| {
                 grid.hodge_2_primal(&mut pressure_temp, &p);
                 grid.derivative_0_dual(&mut vel_temp, &pressure_temp);
+
+                {
+                    let (mut vy, mut vx) = vel_temp.split_mut();
+                    for y in 70 .. 80 {
+                        for x in 50 .. 70 {
+                            vy[(y, x)] = 0.0;
+                            vx[(y, x)] = 0.0;
+                        }
+                    }
+                }
+
                 grid.hodge_1_dual(&mut vel_primal_temp, &vel_temp);
                 grid.derivative_1_primal(&mut laplacian, &vel_primal_temp);
                 for x in laplacian.iter_mut() {

@@ -15,11 +15,16 @@ pub trait Manifold2d<T> {
     type Simplex2: LinearView<Elem = T>;
 
     ///
-    fn new_simplex_0(&self) -> Self::Simplex0;
+    fn num_elem_0(&self) -> usize;
+    ///
+    fn num_elem_1(&self) -> usize;
+    ///
+    fn num_elem_2(&self) -> usize;
 
     ///
+    fn new_simplex_0(&self) -> Self::Simplex0;
+    ///
     fn new_simplex_1(&self) -> Self::Simplex1;
-
     ///
     fn new_simplex_2(&self) -> Self::Simplex2;
 
