@@ -50,7 +50,7 @@ fn main() {
     let builder = glutin::WindowBuilder::new()
         .with_dimensions(1440, 900)
         .with_vsync();
-    let (window, mut device, mut factory, main_color, depth) =
+    let (window, mut device, mut factory, main_color, _) =
         gfx_window_glutin::init::<ColorFormat, DepthFormat>(builder);
     let mut encoder: gfx::Encoder<_, _> = factory.create_command_buffer().into();
 
@@ -81,9 +81,11 @@ fn main() {
     sph::wcsph::init::<f32, U2>(&mut particles);
     particles.add_property::<Vertex>();
 
+    let mut grid = sph::grid::BoundedGrid::new(math::vector_n::vec2(16, 16), 1.0);
+
     let mut positions = Vec::new();
-    for y in 0..4 {
-        for x in 0..4 {
+    for y in 0..4u8 {
+        for x in 0..4u8 {
             let mut pos = sph::property::Position::default();
             ((pos.0).0)[0] = (x as f32) * 3.0;
             ((pos.0).0)[1] = (y as f32) * 3.0;
@@ -114,6 +116,12 @@ fn main() {
             particle_size: 1.0,
         };
         encoder.update_constant_buffer(&data.locals, &locals);
+
+        particles.run(|p| {
+            let mut position = p.write_property::<sph::property::Position<f32, U2>>().unwrap();
+            position.sort_by_key(|pos| grid.get_key(pos));
+            grid.construct_ranges(position);
+        });
 
         particles.run(|p| {
             let mut vertex = p.write_property::<Vertex>().unwrap();
