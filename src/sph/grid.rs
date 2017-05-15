@@ -51,24 +51,20 @@ impl<S> BoundedGrid<S, U2>
     pub fn construct_ranges<P>(&mut self, positions: &[P])
         where P: Deref<Target = VectorN<S, U2>>
     {
-        println!("{:?}", self.cell_ranges.len());
-
         // reset ranges
         for cell in &mut self.cell_ranges {
             *cell = (0, 0);
         }
 
+        let mut prev = self.get_key(&positions[0]);
+
         {
-            let index = self.get_key(&positions[0]);
-            if index >= self.cell_ranges.len() { return; }
-            self.cell_ranges[index].0 = 0;
+            if prev >= self.cell_ranges.len() { return; }
+            self.cell_ranges[prev].0 = 0;
         }
 
-        for particle in 1..positions.len()-1 {
-            let prev = self.get_key(&positions[particle - 1]);
+        for particle in 1..positions.len() {
             let index = self.get_key(&positions[particle]);
-
-            println!("{:?}", (particle, index));
 
             if index >= self.cell_ranges.len() {
                 self.cell_ranges[prev].1 = particle;
@@ -76,23 +72,15 @@ impl<S> BoundedGrid<S, U2>
             }
 
             if prev != index {
-                println!("set {:?}", particle);
                 // new cell
                 self.cell_ranges[index].0 = particle;
                 self.cell_ranges[prev].1 = particle;
             }
+
+            prev = index;
         }
 
-        {
-            let last = positions.len()-1;
-            let index = self.get_key(&positions[last]);
-            if index >= self.cell_ranges.len() {
-                let prev = self.get_key(&positions[last - 1]);
-                self.cell_ranges[prev].1 = positions.len();
-            } else {
-                self.cell_ranges[index].1 = positions.len();
-            }
-        }
+        self.cell_ranges[prev].1 = positions.len();
     }
 
     pub fn get_range(&self, cell: (usize, usize)) -> (usize, usize) {

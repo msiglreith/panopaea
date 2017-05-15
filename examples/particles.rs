@@ -5,6 +5,7 @@ extern crate gfx_window_glutin;
 extern crate glutin;
 extern crate panopaea;
 extern crate generic_array;
+extern crate rayon;
 
 use gfx::{Bind, Device, Factory};
 use gfx::traits::FactoryExt;
@@ -47,6 +48,8 @@ impl Default for Vertex {
 }
 
 fn main() {
+    rayon::initialize(rayon::Configuration::new().num_threads(1));
+
     let builder = glutin::WindowBuilder::new()
         .with_dimensions(1440, 900)
         .with_vsync();
@@ -82,12 +85,12 @@ fn main() {
     sph::wcsph::init::<f32, U2>(&mut particles);
     particles.add_property::<Vertex>();
 
-    let mut grid = sph::grid::BoundedGrid::new(math::vector_n::vec2(16, 16), smoothing);
+    let mut grid = sph::grid::BoundedGrid::new(math::vector_n::vec2(64, 64), smoothing);
 
     let mut positions = Vec::new();
     let mut masses = Vec::new();
-    for y in 0..4u8 {
-        for x in 0..4u8 {
+    for y in 0..8u8 {
+        for x in 0..16u8 {
             let mut pos = sph::property::Position::default();
             ((pos.0).0)[0] = (x as f32) * smoothing * 0.6;
             ((pos.0).0)[1] = (y as f32) * smoothing * 0.6;
@@ -143,8 +146,6 @@ fn main() {
                 v.pos[0] = pos[0]; v.pos[1] = pos[1];
                 v.color[0] = d.0 / 4.0; v.color[1] = 0.0; v.color[2] = 0.0;
             }
-
-            println!("{:#?}", vertex);
         });
 
         let slice = gfx::Slice {

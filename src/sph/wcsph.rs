@@ -35,16 +35,14 @@ pub fn compute_density<T>(kernel_size: T, grid: &BoundedGrid<T, U2>, particles: 
 
         let poly_6 = kernel::Poly6::new(kernel_size);
 
-        density.par_iter_mut().enumerate()
+        density.par_iter_mut()
             .zip(position.par_iter())
-            .for_each(|((id, mut density), pos)| {
+            .for_each(|(mut density, pos)| {
                 let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
                 let mut d = T::zero();
-                println!("cell: {:?}", cell);
-                for y in (cell.1.saturating_sub(1) .. cell.1.saturating_add(1)) {
-                    for x in (cell.0.saturating_sub(1) .. cell.0.saturating_add(1)) {
+                for y in (cell.1.saturating_sub(1) .. cell.1.saturating_add(2)) {
+                    for x in (cell.0.saturating_sub(1) .. cell.0.saturating_add(2)) {
                         let (start, end) = grid.get_range((x, y));
-                        println!("range: {:?}", (start, end));
                         for p in start..end {
                             d += *mass[p] * poly_6.w(pos.distance(&position[p]));
                         }

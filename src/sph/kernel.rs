@@ -2,7 +2,6 @@
 //! Smoothing Kernels
 
 use math::Real;
-use num::FromPrimitive;
 use num::cast;
 
 pub trait Kernel<T: Real> {
