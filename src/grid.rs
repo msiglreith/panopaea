@@ -1,6 +1,6 @@
 
 use math::LinearView;
-use ndarray::{ArrayBase, ArrayView, ArrayViewMut, Dimension, DataOwned};
+use ndarray::{ArrayBase, Dimension};
 use ndarray::{Array, Ix1, Ix2, LinalgScalar};
 use std::f64;
 

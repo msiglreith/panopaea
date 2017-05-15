@@ -1,8 +1,7 @@
 
-use grid::{Grid, Grid2d, MacGrid2d};
-use math::{LinearView, LinearViewReal, Real};
+use grid::{Grid2d, MacGrid2d};
+use math::{LinearView, LinearViewReal};
 use ndarray;
-use ndarray_parallel::prelude::*;
 
 /// Conjugate gradient preconditioner.
 ///
@@ -89,7 +88,7 @@ impl<'a> Preconditioner for ModIncCholesky<'a> {
             // TODO: This is quite slow!
             for y in (0 .. h).rev() {
                 for x in (0 .. w).rev() {
-                    let mut idx = x + y*w; // TODO:
+                    let idx = x + y*w; // TODO:
                     let mut t = dst[idx];
                     if x < w - 1 { t -= plus_x[idx] * precond[idx] * dst[idx+1] };
                     if y < h - 1 { t -= plus_y[idx] * precond[idx] * dst[idx+w] };

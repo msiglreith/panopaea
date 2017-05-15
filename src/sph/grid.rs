@@ -4,7 +4,6 @@
 use generic_array::typenum::U2;
 use math::{Dim, Real, VectorN};
 use std::usize;
-use std::ops::Deref;
 
 pub struct BoundedGrid<S: Real, N: Dim<usize> + Dim<(usize, usize)>> {
     num_cells: VectorN<usize, N>,

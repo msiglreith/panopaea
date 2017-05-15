@@ -11,7 +11,7 @@ pub mod grid;
 pub mod kernel;
 pub mod wcsph;
 
-use math::{Real, Dim, VectorN};
+use math::{Real, Dim};
 use particle::{Particles, Property};
 use rayon::prelude::*;
 
@@ -19,7 +19,6 @@ pub mod property {
     //! Common particle properties
     use std::ops::{Deref, DerefMut};
     use math::{Real, Dim, VectorN};
-    use generic_array::{ArrayLength};
     use particle::Property;
 
     #[derive(Clone, Debug)]

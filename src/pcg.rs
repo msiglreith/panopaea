@@ -20,7 +20,7 @@ pub fn precond_conjugate_gradient<L, O, P, T>(
     residual: &mut L,
     mut auxiliary: &mut L,
     search: &mut L,
-    mut A: O,
+    mut a: O,
 ) where P: Preconditioner<L>,
         T: Real,
         L: LinearViewReal<T>,
@@ -42,13 +42,13 @@ pub fn precond_conjugate_gradient<L, O, P, T>(
     search.view_linear_mut().assign(&auxiliary.view_linear());
 
     {
-        let mut residual_error = T::zero();
+        let mut residual_error;
         let mut sigma = auxiliary.dot_linear(residual);
 
         'iter: for i in 0..max_iterations {
             // println!("residual: {:#?}", &residual.view_linear());
             // println!("search: {:#?}", &search.view_linear());
-            A(&mut auxiliary, search); // apply_sparse_matrix(auxiliary, search, diag, plus_x, plus_y, timestep);
+            a(&mut auxiliary, search); // apply_sparse_matrix(auxiliary, search, diag, plus_x, plus_y, timestep);
             // println!("aux: {:#?}", &auxiliary.view_linear());
             let alpha = sigma/auxiliary.dot_linear(search);
             

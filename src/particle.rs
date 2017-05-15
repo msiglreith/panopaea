@@ -2,7 +2,6 @@
 //! Particle system
 
 use std::collections::HashMap;
-use std::default::Default;
 use std::marker::PhantomData;
 use std::any::{TypeId};
 use mopa;

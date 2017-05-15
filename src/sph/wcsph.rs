@@ -3,8 +3,7 @@
 
 use cgmath::MetricSpace;
 use math::{Dim, Real};
-use generic_array::ArrayLength;
-use particle::{self, Particles};
+use particle::{Particles};
 use rayon::prelude::*;
 use typenum::U2;
 use num::cast;
@@ -88,7 +87,7 @@ pub fn calculate_pressure<T>(kernel_size: T, gas_constant: T, rest_density: T, g
                             let density_j = densities[p];
                             let mass_j = masses[p];
                             let two = cast::<f64, T>(2.0).unwrap();
-                            let r = (pos - positions[p]);
+                            let r = pos - positions[p];
                             *accel -= r * mass_j * spiky.grad_w(pos.distance(&positions[p])) * (pressure_j + pressure_i) / (two * density_j);
                         }
                     }

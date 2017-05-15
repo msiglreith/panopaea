@@ -43,7 +43,7 @@ impl <S: Clone + Zero, N: Dim<S>> Zero for VectorN<S, N> {
 
 impl <S, N: Dim<S>> Add for VectorN<S, N> {
     type Output = Self;
-    fn add(self, rhs: Self) -> Self::Output {
+    fn add(self, _rhs: Self) -> Self::Output {
         unimplemented!()
     }
 }
@@ -58,7 +58,7 @@ impl <S: AddAssign + Copy, N: Dim<S>> AddAssign for VectorN<S, N> {
 
 impl <S, N: Dim<S>> Sub for VectorN<S, N> {
     type Output = Self;
-    fn sub(self, rhs: Self) -> Self::Output {
+    fn sub(self, _rhs: Self) -> Self::Output {
         unimplemented!()
     }
 }
@@ -73,21 +73,21 @@ impl <S: SubAssign + Copy, N: Dim<S>> SubAssign for VectorN<S, N> {
 
 impl <S, N: Dim<S>> Mul<S> for VectorN<S, N> {
     type Output = Self;
-    fn mul(self, rhs: S) -> Self::Output {
+    fn mul(self, _rhs: S) -> Self::Output {
         unimplemented!()
     }
 }
 
 impl <S, N: Dim<S>> Div<S> for VectorN<S, N> {
     type Output = Self;
-    fn div(self, rhs: S) -> Self::Output {
+    fn div(self, _rhs: S) -> Self::Output {
         unimplemented!()
     }
 }
 
 impl <S, N: Dim<S>> Rem<S> for VectorN<S, N> {
     type Output = Self;
-    fn rem(self, rhs: S) -> Self::Output {
+    fn rem(self, _rhs: S) -> Self::Output {
         unimplemented!()
     }
 }

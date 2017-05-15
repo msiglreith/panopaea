@@ -1,10 +1,8 @@
 
-use cgmath;
 use cgmath::BaseFloat;
-use na::{self, DimName};
+use na;
 use ndarray::{ArrayBase, ArrayView, ArrayViewMut, Dimension, Ix1};
 use generic_array::ArrayLength;
-use std;
 
 pub mod vector_n;
 

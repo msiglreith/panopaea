@@ -49,7 +49,7 @@ impl Property for Vertex {
 }
 
 fn main() {
-    rayon::initialize(rayon::Configuration::new().num_threads(1));
+    // rayon::initialize(rayon::Configuration::new().num_threads(1));
 
     let builder = glutin::WindowBuilder::new()
         .with_dimensions(1440, 900)

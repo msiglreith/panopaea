@@ -60,7 +60,7 @@ impl<T: Real> Kernel<T> for Poly6<T> {
         self.grad_w_const * diff.powi(2)
     }
 
-    fn laplace_w(&self, radius: T) -> T {
+    fn laplace_w(&self, _radius: T) -> T {
         unimplemented!()
     }
 }
@@ -113,7 +113,7 @@ impl<T: Real> Kernel<T> for Spiky<T> {
         self.grad_w_const * diff.powi(2) / radius
     }
 
-    fn laplace_w(&self, radius: T) -> T {
+    fn laplace_w(&self, _radius: T) -> T {
         unimplemented!()
     }
 }
