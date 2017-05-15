@@ -4,6 +4,7 @@
 use generic_array::typenum::U2;
 use math::{Dim, Real, VectorN};
 use std::usize;
+use std::cmp;
 
 pub struct BoundedGrid<S: Real, N: Dim<usize> + Dim<(usize, usize)>> {
     num_cells: VectorN<usize, N>,
@@ -80,8 +81,36 @@ impl<S> BoundedGrid<S, U2>
         self.cell_ranges[prev].1 = positions.len();
     }
 
-    pub fn get_range(&self, cell: (usize, usize)) -> (usize, usize) {
+    pub fn get_range(&self, cell: (usize, usize)) -> Option<(usize, usize)> {
+        if (cell.0 < self.num_cells[0]) &&
+           (cell.1 < self.num_cells[1])
+        {
+            Some(unsafe { self.get_range_unchecked(cell) })
+        } else {
+            None
+        }
+    }
+
+    pub unsafe fn get_range_unchecked(&self, cell: (usize, usize)) -> (usize, usize) {
+        debug_assert!(cell.0 < self.num_cells[0] && cell.1 < self.num_cells[1]);
         let index = cell.0 + cell.1 * self.num_cells[0];
         self.cell_ranges[index]
+    }
+
+    /// Apply function to each neighboring (including itself) cell in the grid.
+    pub fn for_each_neighbor<F>(&self, cell: (usize, usize), bound: usize, mut fnc: F)  
+        where F: FnMut(usize)
+    {
+        let upper_x = cmp::min(cell.0 + bound+1, self.num_cells[0]);
+        let upper_y = cmp::min(cell.1 + bound+1, self.num_cells[1]);
+
+        for y in cell.1.saturating_sub(bound)..upper_y {
+            for x in cell.0.saturating_sub(bound)..upper_x {
+                let (start, end) = unsafe { self.get_range_unchecked((x, y)) };
+                for p in start..end {
+                    fnc(p);
+                }
+            }
+        }
     }
 }

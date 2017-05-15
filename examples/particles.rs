@@ -49,7 +49,7 @@ impl Property for Vertex {
 }
 
 fn main() {
-    // rayon::initialize(rayon::Configuration::new().num_threads(1));
+    rayon::initialize(rayon::Configuration::new().num_threads(1));
 
     let builder = glutin::WindowBuilder::new()
         .with_dimensions(1440, 900)
@@ -136,6 +136,7 @@ fn main() {
             });
 
             sph::wcsph::compute_density(smoothing, &grid, &mut particles);
+            sph::wcsph::calculate_pressure(smoothing, 1.0, 2.0, &grid, &mut particles)
 
         }
 

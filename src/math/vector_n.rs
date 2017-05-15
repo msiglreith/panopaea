@@ -56,10 +56,13 @@ impl <S: AddAssign + Copy, N: Dim<S>> AddAssign for VectorN<S, N> {
     }
 }
 
-impl <S, N: Dim<S>> Sub for VectorN<S, N> {
+impl <S: Sub<Output=S> + Copy, N: Dim<S>> Sub for VectorN<S, N> {
     type Output = Self;
-    fn sub(self, _rhs: Self) -> Self::Output {
-        unimplemented!()
+    fn sub(mut self, rhs: Self) -> Self::Output {
+        for i in 0..N::to_usize() {
+            self[i] = self[i] - rhs[i];
+        }
+        self
     }
 }
 
@@ -71,10 +74,13 @@ impl <S: SubAssign + Copy, N: Dim<S>> SubAssign for VectorN<S, N> {
     }
 }
 
-impl <S, N: Dim<S>> Mul<S> for VectorN<S, N> {
+impl <S: Mul<Output=S> + Copy, N: Dim<S>> Mul<S> for VectorN<S, N> {
     type Output = Self;
-    fn mul(self, _rhs: S) -> Self::Output {
-        unimplemented!()
+    fn mul(mut self, rhs: S) -> Self::Output {
+        for i in 0..N::to_usize() {
+            self[i] = self[i] * rhs;
+        }
+        self
     }
 }
 

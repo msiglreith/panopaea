@@ -43,15 +43,11 @@ pub fn compute_density<T>(kernel_size: T, grid: &BoundedGrid<T, U2>, particles: 
             .zip(position.par_iter())
             .for_each(|(mut density, pos)| {
                 let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
+
                 let mut d = T::zero();
-                for y in cell.1.saturating_sub(1) .. cell.1.saturating_add(2) {
-                    for x in cell.0.saturating_sub(1) .. cell.0.saturating_add(2) {
-                        let (start, end) = grid.get_range((x, y));
-                        for p in start..end {
-                            d += mass[p] * poly_6.w(pos.distance(&position[p]));
-                        }
-                    }
-                }
+                grid.for_each_neighbor(cell, 1, |p| {
+                    d += mass[p] * poly_6.w(pos.distance(&position[p]));
+                });
 
                 *density = d;
             });
@@ -78,20 +74,15 @@ pub fn calculate_pressure<T>(kernel_size: T, gas_constant: T, rest_density: T, g
                 let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
                 let pressure_i = gas_constant * (density - rest_density);
 
-                for y in cell.1.saturating_sub(1) .. cell.1.saturating_add(2) {
-                    for x in cell.0.saturating_sub(1) .. cell.0.saturating_add(2) {
-                        let (start, end) = grid.get_range((x, y));
-                        for p in start..end {
-                            // TODO
-                            let pressure_j = gas_constant * (densities[p] - rest_density);
-                            let density_j = densities[p];
-                            let mass_j = masses[p];
-                            let two = cast::<f64, T>(2.0).unwrap();
-                            let r = pos - positions[p];
-                            *accel -= r * mass_j * spiky.grad_w(pos.distance(&positions[p])) * (pressure_j + pressure_i) / (two * density_j);
-                        }
-                    }
-                }
+                grid.for_each_neighbor(cell, 1, |p| {
+                    // TODO
+                    let pressure_j = gas_constant * (densities[p] - rest_density);
+                    let density_j = densities[p];
+                    let mass_j = masses[p];
+                    let two = cast::<f64, T>(2.0).unwrap();
+                    let r = pos - positions[p];
+                    *accel -= r * (mass_j * spiky.grad_w(pos.distance(&positions[p])) * (pressure_j + pressure_i) / (two * density * density_j));
+                });
             });
     });
 }
