@@ -1,8 +1,9 @@
 
-use cgmath::{Vector2, MetricSpace};
+use cgmath::{BaseNum, Vector2, MetricSpace, VectorSpace};
 use generic_array::GenericArray;
 use generic_array::typenum::{U2, U3};
-use std::ops::{Deref, DerefMut};
+use std::ops::{Add, AddAssign, Deref, DerefMut, Sub, SubAssign, Mul, Div, Rem};
+use num::Zero;
 
 use super::{Dim, Real};
 
@@ -23,6 +24,77 @@ impl <S: Clone, N: Dim<S>> VectorN<S, N> {
         let len = N::to_usize();
         VectorN(GenericArray::clone_from_slice(&vec![elem; len]))
     }
+}
+
+impl <S: Copy, N: Dim<S>> Copy for VectorN<S, N> where GenericArray<S, N>: Copy { }
+
+impl <S: Clone + Zero, N: Dim<S>> Zero for VectorN<S, N> {
+    #[inline]
+    fn zero() -> VectorN<S, N> {
+        Self::from_elem(S::zero())
+    }
+
+    #[inline]
+    fn is_zero(&self) -> bool {
+        unimplemented!()
+        // *self == Self::zero()
+    }
+}
+
+impl <S, N: Dim<S>> Add for VectorN<S, N> {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self::Output {
+        unimplemented!()
+    }
+}
+
+impl <S: AddAssign + Copy, N: Dim<S>> AddAssign for VectorN<S, N> {
+    fn add_assign(&mut self, rhs: Self) {
+        for i in 0..N::to_usize() {
+            self[i] += rhs[i];
+        }
+    }
+}
+
+impl <S, N: Dim<S>> Sub for VectorN<S, N> {
+    type Output = Self;
+    fn sub(self, rhs: Self) -> Self::Output {
+        unimplemented!()
+    }
+}
+
+impl <S: SubAssign + Copy, N: Dim<S>> SubAssign for VectorN<S, N> {
+    fn sub_assign(&mut self, rhs: Self) {
+        for i in 0..N::to_usize() {
+            self[i] -= rhs[i];
+        }
+    }
+}
+
+impl <S, N: Dim<S>> Mul<S> for VectorN<S, N> {
+    type Output = Self;
+    fn mul(self, rhs: S) -> Self::Output {
+        unimplemented!()
+    }
+}
+
+impl <S, N: Dim<S>> Div<S> for VectorN<S, N> {
+    type Output = Self;
+    fn div(self, rhs: S) -> Self::Output {
+        unimplemented!()
+    }
+}
+
+impl <S, N: Dim<S>> Rem<S> for VectorN<S, N> {
+    type Output = Self;
+    fn rem(self, rhs: S) -> Self::Output {
+        unimplemented!()
+    }
+}
+
+impl<S: BaseNum, N: Dim<S>> VectorSpace for VectorN<S, N>
+    where VectorN<S, N>: Copy {
+    type Scalar = S;
 }
 
 impl<'a, S: Real, N: Dim<S>> MetricSpace for &'a VectorN<S, N> {

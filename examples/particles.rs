@@ -11,7 +11,7 @@ use gfx::{Bind, Device, Factory};
 use gfx::traits::FactoryExt;
 
 use panopaea::*;
-use panopaea::particle::Particles;
+use panopaea::particle::{Particles, Property};
 
 use cgmath::Transform;
 use generic_array::typenum::U2;
@@ -38,11 +38,12 @@ gfx_defines!{
     }
 }
 
-impl Default for Vertex {
-    fn default() -> Vertex {
+impl Property for Vertex {
+    type Subtype = Vertex;
+    fn new() -> Self {
         Vertex {
-            pos: [0.0, 0.0],
-            color: [1.0, 1.0, 1.0],
+            pos: [0.0; 2],
+            color: [0.0; 3]
         }
     }
 }
@@ -91,17 +92,17 @@ fn main() {
     let mut masses = Vec::new();
     for y in 0..16u8 {
         for x in 0..16u8 {
-            let mut pos = sph::property::Position::default();
-            ((pos.0).0)[0] = (x as f32) * smoothing * 0.6;
-            ((pos.0).0)[1] = (y as f32) * smoothing * 0.6;
+            let mut pos = sph::property::Position::new();
+            pos[0] = (x as f32) * smoothing * 0.6;
+            pos[1] = (y as f32) * smoothing * 0.6;
             positions.push(pos);
-            masses.push(sph::property::Mass(1.0f32));
+            masses.push(1.0f32);
         }
     }
 
     particles.add_particles(positions.len())
              .with::<sph::property::Position<f32, U2>>(&positions)
-             .with(&masses);
+             .with::<sph::property::Mass<f32>>(&masses);
 
     let (width, height) = window.get_inner_size_points().unwrap();
     let aspect = (height as f32) / (width as f32);
@@ -150,7 +151,7 @@ fn main() {
                      .zip(density.iter())
             {
                 v.pos[0] = pos[0]; v.pos[1] = pos[1];
-                v.color[0] = d.0 / 4.0; v.color[1] = 0.0; v.color[2] = 0.0;
+                v.color[0] = d / 4.0; v.color[1] = 0.0; v.color[2] = 0.0;
             }
         });
 

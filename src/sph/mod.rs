@@ -12,7 +12,7 @@ pub mod kernel;
 pub mod wcsph;
 
 use math::{Real, Dim, VectorN};
-use particle::Particles;
+use particle::{Particles, Property};
 use rayon::prelude::*;
 
 pub mod property {
@@ -20,9 +20,20 @@ pub mod property {
     use std::ops::{Deref, DerefMut};
     use math::{Real, Dim, VectorN};
     use generic_array::{ArrayLength};
+    use particle::Property;
 
     #[derive(Clone, Debug)]
     pub struct Position<T: Real, N: Dim<T>>(pub VectorN<T, N>);
+
+    impl<T: Real, N: Dim<T>> Property for Position<T, N> {
+        type Subtype = VectorN<T, N>;
+        fn new() -> Self::Subtype {
+            VectorN::from_elem(T::zero())
+        }
+    }
+
+    impl<T: Real, N: Dim<T>> Copy for Position<T, N>
+        where VectorN<T, N>: Copy { }
 
     impl<T, N> Deref for Position<T, N>
         where T: Real, N: Dim<T>
@@ -52,6 +63,16 @@ pub mod property {
     #[derive(Clone, Debug)]
     pub struct Velocity<T: Real, N: Dim<T>>(pub VectorN<T, N>);
 
+    impl<T: Real, N: Dim<T>> Property for Velocity<T, N> {
+        type Subtype = VectorN<T, N>;
+        fn new() -> Self::Subtype {
+            VectorN::from_elem(T::zero())
+        }
+    }
+
+    impl<T: Real, N: Dim<T>> Copy for Velocity<T, N>
+        where VectorN<T, N>: Copy { }
+
     impl<T, N> Deref for Velocity<T, N>
         where T: Real, N: Dim<T>
     {
@@ -79,6 +100,13 @@ pub mod property {
 
     #[derive(Clone, Debug)]
     pub struct Acceleration<T: Real, N: Dim<T>>(pub VectorN<T, N>);
+
+    impl<T: Real, N: Dim<T>> Property for Acceleration<T, N> {
+        type Subtype = VectorN<T, N>;
+        fn new() -> Self::Subtype {
+            VectorN::from_elem(T::zero())
+        }
+    }
 
     impl<T, N> Deref for Acceleration<T, N>
         where T: Real, N: Dim<T>
@@ -108,63 +136,29 @@ pub mod property {
     #[derive(Copy, Clone, Debug)]
     pub struct Mass<T: Real>(pub T);
 
-    impl<T: Real> Deref for Mass<T> {
-        type Target = T;
-        fn deref(&self) -> &T {
-            &self.0
-        }
-    }
-    impl<T: Real> DerefMut for Mass<T> {
-        fn deref_mut(&mut self) -> &mut T {
-            &mut self.0
-        }
-    }
-
-    impl<T: Real> Default for Mass<T> {
-        fn default() -> Self {
-            Mass(T::zero())
+    impl<T: Real> Property for Mass<T> {
+        type Subtype = T;
+        fn new() -> Self::Subtype {
+            T::zero()
         }
     }
 
     #[derive(Copy, Clone, Debug)]
     pub struct Density<T: Real>(pub T);
 
-    impl<T: Real> Deref for Density<T> {
-        type Target = T;
-        fn deref(&self) -> &T {
-            &self.0
-        }
-    }
-    impl<T: Real> DerefMut for Density<T> {
-        fn deref_mut(&mut self) -> &mut T {
-            &mut self.0
+    impl<T: Real> Property for Density<T> {
+        type Subtype = T;
+        fn new() -> Self::Subtype {
+            T::zero()
         }
     }
 
-    impl<T: Real> Default for Density<T> {
-        fn default() -> Self {
-            Density(T::zero())
-        }
-    }
-
-    #[derive(Copy, Clone, Debug)]
     pub struct Pressure<T: Real>(pub T);
 
-    impl<T: Real> Deref for Pressure<T> {
-        type Target = T;
-        fn deref(&self) -> &T {
-            &self.0
-        }
-    }
-    impl<T: Real> DerefMut for Pressure<T> {
-        fn deref_mut(&mut self) -> &mut T {
-            &mut self.0
-        }
-    }
-
-    impl<T: Real> Default for Pressure<T> {
-        fn default() -> Self {
-            Pressure(T::zero())
+    impl<T: Real> Property for Pressure<T> {
+        type Subtype = T;
+        fn new() -> Self::Subtype {
+            T::zero()
         }
     }
 }
@@ -175,6 +169,6 @@ pub fn reset_acceleration<T, N>(particles: &mut Particles)
     use self::property::Acceleration;
     particles.run(|p| {
         let mut accel = p.write_property::<Acceleration<T, N>>().unwrap();
-        accel.par_iter_mut().for_each(|mut a| *a = Acceleration::<T, N>::default() );
+        accel.par_iter_mut().for_each(|mut a| *a = Acceleration::<T, N>::new() );
     });
 }

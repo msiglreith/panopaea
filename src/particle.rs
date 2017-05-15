@@ -3,8 +3,14 @@
 
 use std::collections::HashMap;
 use std::default::Default;
+use std::marker::PhantomData;
 use std::any::{TypeId};
 use mopa;
+
+pub trait Property: 'static {
+    type Subtype: Clone;
+    fn new() -> Self::Subtype;
+}
 
 pub struct Particles {
     num_particles: usize,
@@ -19,41 +25,35 @@ impl Particles {
         }
     }
 
-    pub fn add_property<T>(&mut self)
-        where T: Clone + Default + 'static
-    {
+    pub fn add_property<T: Property>(&mut self) {
         let type_id = TypeId::of::<T>();
         let num_particles = self.num_particles;
 
         self.properties.entry(type_id).or_insert_with(|| {
-            Box::new(vec![T::default(); num_particles])
+            Box::new((vec![T::new(); num_particles], PhantomData::<T>))
         });
     }
 
-    pub fn read_property<T>(&self) -> Option<&[T]>
-        where T: Clone + Default + 'static {
-        unsafe { self.get_property().map(|property| property.as_slice()) }
+    pub fn read_property<T: Property>(&self) -> Option<&[T::Subtype]> {
+        unsafe { self.get_property::<T>().map(|property| property.as_slice()) }
     }
 
-    pub fn write_property<T>(&mut self) -> Option<&mut [T]>
-        where T: Clone + Default + 'static {
-        unsafe { self.get_property_mut().map(|property| property.as_mut_slice()) }
+    pub fn write_property<T: Property>(&mut self) -> Option<&mut [T::Subtype]> {
+        unsafe { self.get_property_mut::<T>().map(|property| property.as_mut_slice()) }
     }
 
-    unsafe fn get_property<T>(&self) -> Option<&Vec<T>>
-        where T: Clone + Default + 'static
-    {
+    unsafe fn get_property<T: Property>(&self) -> Option<&Vec<T::Subtype>> {
         let type_id = TypeId::of::<T>();
         self.properties.get(&type_id)
-                       .and_then(|property| property.downcast_ref())
+                       .and_then(|property| property.downcast_ref::<VecStorage<T>>())
+                       .map(|&(ref vec, _)| vec)
     }
 
-    unsafe fn get_property_mut<T>(&self) -> Option<&mut Vec<T>>
-        where T: Clone + Default + 'static
-    {
+    unsafe fn get_property_mut<T: Property>(&self) -> Option<&mut Vec<T::Subtype>> {
         let type_id = TypeId::of::<T>();
         self.properties.get(&type_id)
-                       .and_then(|property| (*(property as *const _ as *mut Box<Storage>)).downcast_mut()) // TODO: something safer would be appreciated
+                       .and_then(|property| (*(property as *const _ as *mut Box<Storage>)).downcast_mut::<VecStorage<T>>()) // TODO: something safer would be appreciated
+                       .map(|&mut (ref mut vec, _)| vec)
     }
 
     pub fn reserve(&mut self, additional: usize) {
@@ -81,9 +81,7 @@ impl Particles {
 pub struct Builder<'a>(&'a mut Particles);
 
 impl<'a> Builder<'a> {
-    pub fn with<T>(&mut self, values: &[T]) -> &mut Self
-        where T: Clone + Default + 'static
-    {
+    pub fn with<T: Property>(&mut self, values: &[T::Subtype]) -> &mut Self {
         let num_particles = self.0.num_particles;
         if let Some(mut storage) = unsafe { self.0.get_property_mut::<T>() } {
             debug_assert_eq!(values.len(), num_particles - storage.len());
@@ -109,14 +107,12 @@ impl<'a> Drop for Builder<'a> {
 
 pub struct Processor<'a>(&'a mut Particles);
 impl<'a> Processor<'a> {
-    pub fn read_property<T>(&self) -> Option<&[T]>
-        where T: Clone + Default + 'static {
-        unsafe { self.0.get_property().map(|property| property.as_slice()) }
+    pub fn read_property<T: Property>(&self) -> Option<&[T::Subtype]> {
+        unsafe { self.0.get_property::<T>().map(|property| property.as_slice()) }
     }
 
-    pub fn write_property<T>(&self) -> Option<&mut [T]>
-        where T: Clone + Default + 'static {
-        unsafe { self.0.get_property_mut().map(|property| property.as_mut_slice()) }
+    pub fn write_property<T: Property>(&self) -> Option<&mut [T::Subtype]> {
+        unsafe { self.0.get_property_mut::<T>().map(|property| property.as_mut_slice()) }
     }
 }
 
@@ -129,16 +125,18 @@ pub trait Storage : mopa::Any {
 
 mopafy!(Storage);
 
-impl<T: Clone + Default + 'static> Storage for Vec<T> {
+type VecStorage<T: Property> = (Vec<T::Subtype>, PhantomData<T>);
+
+impl<T: Property> Storage for VecStorage<T> {
     fn len(&self) -> usize {
-        self.len()
+        self.0.len()
     }
 
     fn reserve(&mut self, additional: usize) {
-        self.reserve(additional);
+        self.0.reserve(additional);
     }
 
     fn fill(&mut self, additional: usize) {
-        self.extend_from_slice(&vec![T::default(); additional])
+        self.0.extend_from_slice(&vec![T::new(); additional])
     }
 }

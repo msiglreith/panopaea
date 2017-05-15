@@ -48,9 +48,7 @@ impl<S> BoundedGrid<S, U2>
     /// Reconstruct cell ranges from _sorted_ particle position.
     ///
     /// Ref: "Particle Simulation using CUDA", Green, Simon, 2013
-    pub fn construct_ranges<P>(&mut self, positions: &[P])
-        where P: Deref<Target = VectorN<S, U2>>
-    {
+    pub fn construct_ranges(&mut self, positions: &[VectorN<S, U2>]) {
         // reset ranges
         for cell in &mut self.cell_ranges {
             *cell = (0, 0);
