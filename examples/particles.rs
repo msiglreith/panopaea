@@ -136,8 +136,8 @@ fn main() {
             });
 
             sph::wcsph::compute_density(smoothing, &grid, &mut particles);
+            sph::reset_acceleration::<f32, U2>(&mut particles);
             sph::wcsph::calculate_pressure(smoothing, 1.0, 2.0, &grid, &mut particles)
-
         }
 
         // Update particle vertex data
@@ -145,14 +145,15 @@ fn main() {
             let mut vertex = p.write_property::<Vertex>().unwrap();
             let position = p.read_property::<sph::property::Position<f32, U2>>().unwrap();
             let density = p.read_property::<sph::property::Density<f32>>().unwrap();
+            let accel = p.read_property::<sph::property::Acceleration<f32, U2>>().unwrap();
 
-            for ((mut v, pos), &d) in
+            for ((mut v, pos), &accel) in
                     vertex.iter_mut()
                      .zip(position.iter())
-                     .zip(density.iter())
+                     .zip(accel.iter())
             {
                 v.pos[0] = pos[0]; v.pos[1] = pos[1];
-                v.color[0] = d / 4.0; v.color[1] = 0.0; v.color[2] = 0.0;
+                v.color[0] = accel[0].abs() / 4.0; v.color[1] = accel[1].abs() / 4.0; v.color[2] = 0.0;
             }
         });
 
