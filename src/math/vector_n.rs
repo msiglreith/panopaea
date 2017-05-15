@@ -25,15 +25,31 @@ impl <S: Clone, N: Dim<S>> VectorN<S, N> {
     }
 }
 
-impl<S: Real, N: Dim<S>> MetricSpace for VectorN<S, N> {
+impl<'a, S: Real, N: Dim<S>> MetricSpace for &'a VectorN<S, N> {
     type Metric = S;
 
     fn distance2(self, other: Self) -> Self::Metric {
-        unimplemented!()
+        let mut dist = S::zero();
+        for i in 0..N::to_usize() {
+            dist += (self[i]-other[i]).powi(2)
+        }
+        dist 
+
+        /*
+        self.0.iter()
+            .zip(other.0.iter())
+            .map(|(&x, &y)| (x-y).powi(2))
+            .fold(S::zero(), |a, b| a + b)
+        */
     }
 
     fn distance(self, other: Self) -> Self::Metric {
-        unimplemented!()
+        // self.distance(other).sqrt()
+        let mut dist = S::zero();
+        for i in 0..N::to_usize() {
+            dist += (self[i]-other[i]).powi(2)
+        }
+        dist.sqrt()
     }
 }
 

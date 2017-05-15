@@ -25,7 +25,7 @@ impl<T: Real> Poly6<T> {
 
         Poly6 {
             h: smoothing_radius,
-            w_const: frac * (pi * h9),
+            w_const: frac / (pi * h9),
         }
     }
 }

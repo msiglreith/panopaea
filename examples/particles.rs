@@ -77,23 +77,28 @@ fn main() {
         out_color: main_color,
     };
 
+    let smoothing = 2.0;
     let mut particles = Particles::new();
     sph::wcsph::init::<f32, U2>(&mut particles);
     particles.add_property::<Vertex>();
 
-    let mut grid = sph::grid::BoundedGrid::new(math::vector_n::vec2(16, 16), 1.0);
+    let mut grid = sph::grid::BoundedGrid::new(math::vector_n::vec2(16, 16), smoothing);
 
     let mut positions = Vec::new();
+    let mut masses = Vec::new();
     for y in 0..4u8 {
         for x in 0..4u8 {
             let mut pos = sph::property::Position::default();
-            ((pos.0).0)[0] = (x as f32) * 3.0;
-            ((pos.0).0)[1] = (y as f32) * 3.0;
-            positions.push(pos)
+            ((pos.0).0)[0] = (x as f32) * smoothing * 0.6;
+            ((pos.0).0)[1] = (y as f32) * smoothing * 0.6;
+            positions.push(pos);
+            masses.push(sph::property::Mass(1.0f32));
         }
     }
 
-    particles.add_particles(positions.len()).with::<sph::property::Position<f32, U2>>(&positions);
+    particles.add_particles(positions.len())
+             .with::<sph::property::Position<f32, U2>>(&positions)
+             .with(&masses);
 
     let (width, height) = window.get_inner_size_points().unwrap();
     let aspect = (height as f32) / (width as f32);
@@ -123,12 +128,20 @@ fn main() {
             grid.construct_ranges(position);
         });
 
+        sph::wcsph::compute_density(smoothing, &grid, &mut particles);
+
         particles.run(|p| {
             let mut vertex = p.write_property::<Vertex>().unwrap();
             let position = p.read_property::<sph::property::Position<f32, U2>>().unwrap();
+            let density = p.read_property::<sph::property::Density<f32>>().unwrap();
 
-            for (mut v, pos) in vertex.iter_mut().zip(position.iter()) {
+            for ((mut v, pos), &d) in
+                    vertex.iter_mut()
+                     .zip(position.iter())
+                     .zip(density.iter())
+            {
                 v.pos[0] = pos[0]; v.pos[1] = pos[1];
+                v.color[0] = d.0 / 4.0; v.color[1] = 0.0; v.color[2] = 0.0;
             }
 
             println!("{:#?}", vertex);
