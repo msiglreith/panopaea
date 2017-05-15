@@ -1,16 +1,24 @@
 
 //! Smoothed Particle hydrodynamics
+//!
+//! References:
+//!     [MDM03] Matthias Müller, David Charypar, and Markus Gross, 2003,
+//!             Particle-based fluid simulation for interactive applications,
+//!             In Proceedings of the 2003 ACM SIGGRAPH/Eurographics symposium on Computer animation (SCA '03),
+//!             Eurographics Association, Aire-la-Ville, Switzerland, Switzerland, 154-159
 
 pub mod grid;
 pub mod kernel;
 pub mod wcsph;
 
+use math::{Real, Dim, VectorN};
+use particle::Particles;
+use rayon::prelude::*;
+
 pub mod property {
     //! Common particle properties
-    use alga;
     use std::ops::{Deref, DerefMut};
     use math::{Real, Dim, VectorN};
-    use na;
     use generic_array::{ArrayLength};
 
     #[derive(Clone, Debug)]
@@ -66,6 +74,34 @@ pub mod property {
     {
         fn default() -> Self {
             Velocity(VectorN::from_elem(T::zero()))
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    pub struct Acceleration<T: Real, N: Dim<T>>(pub VectorN<T, N>);
+
+    impl<T, N> Deref for Acceleration<T, N>
+        where T: Real, N: Dim<T>
+    {
+        type Target = VectorN<T, N>;
+        fn deref(&self) -> &VectorN<T, N> {
+            &self.0
+        }
+    }
+
+    impl<T, N> DerefMut for Acceleration<T, N>
+        where T: Real, N: Dim<T>
+    {
+        fn deref_mut(&mut self) -> &mut VectorN<T, N> {
+            &mut self.0
+        }
+    }
+
+    impl<T, N> Default for Acceleration<T, N>
+        where T: Real, N: Dim<T>
+    {
+        fn default() -> Self {
+            Acceleration(VectorN::from_elem(T::zero()))
         }
     }
 
@@ -131,4 +167,14 @@ pub mod property {
             Pressure(T::zero())
         }
     }
+}
+
+pub fn reset_acceleration<T, N>(particles: &mut Particles)
+    where T: Real, N: Dim<T>
+{
+    use self::property::Acceleration;
+    particles.run(|p| {
+        let mut accel = p.write_property::<Acceleration<T, N>>().unwrap();
+        accel.par_iter_mut().for_each(|mut a| *a = Acceleration::<T, N>::default() );
+    });
 }

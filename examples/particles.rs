@@ -89,7 +89,7 @@ fn main() {
 
     let mut positions = Vec::new();
     let mut masses = Vec::new();
-    for y in 0..8u8 {
+    for y in 0..16u8 {
         for x in 0..16u8 {
             let mut pos = sph::property::Position::default();
             ((pos.0).0)[0] = (x as f32) * smoothing * 0.6;
@@ -125,14 +125,20 @@ fn main() {
         };
         encoder.update_constant_buffer(&data.locals, &locals);
 
-        particles.run(|p| {
-            let mut position = p.write_property::<sph::property::Position<f32, U2>>().unwrap();
-            position.sort_by_key(|pos| grid.get_key(pos));
-            grid.construct_ranges(position);
-        });
+        // SPH simulation step
+        {
+            // Neighbor search
+            particles.run(|p| {
+                let mut position = p.write_property::<sph::property::Position<f32, U2>>().unwrap();
+                position.sort_by_key(|pos| grid.get_key(pos));
+                grid.construct_ranges(position);
+            });
 
-        sph::wcsph::compute_density(smoothing, &grid, &mut particles);
+            sph::wcsph::compute_density(smoothing, &grid, &mut particles);
 
+        }
+
+        // Update particle vertex data
         particles.run(|p| {
             let mut vertex = p.write_property::<Vertex>().unwrap();
             let position = p.read_property::<sph::property::Position<f32, U2>>().unwrap();
