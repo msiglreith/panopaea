@@ -105,7 +105,8 @@ impl<T: Real> Kernel<T> for Spiky<T> {
     fn grad_w(&self, radius: T) -> T {
         debug_assert!(radius.is_sign_positive());
 
-        if self.h <= radius {
+        let eps = cast::<f64, T>(0.001).unwrap();
+        if self.h <= radius || radius < eps {
             return T::zero();
         }
 

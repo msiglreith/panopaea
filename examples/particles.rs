@@ -15,6 +15,7 @@ use panopaea::particle::{Particles, Property};
 
 use cgmath::Transform;
 use generic_array::typenum::U2;
+use rayon::prelude::*;
 
 pub type ColorFormat = gfx::format::Srgba8;
 pub type DepthFormat = gfx::format::DepthStencil;
@@ -52,8 +53,8 @@ fn main() {
     rayon::initialize(rayon::Configuration::new().num_threads(1));
 
     let builder = glutin::WindowBuilder::new()
-        .with_dimensions(1440, 900)
-        .with_vsync();
+        .with_dimensions(1440, 900);
+        // .with_vsync();
     let (window, mut device, mut factory, main_color, _) =
         gfx_window_glutin::init::<ColorFormat, DepthFormat>(builder);
     let mut encoder: gfx::Encoder<_, _> = factory.create_command_buffer().into();
@@ -82,28 +83,30 @@ fn main() {
     };
 
     let smoothing = 2.0;
-    let timestep = 0.1f32;
+    let timestep = 0.0005f32;
     let mut particles = Particles::new();
     sph::wcsph::init::<f32, U2>(&mut particles);
     particles.add_property::<Vertex>();
 
     let mut grid = sph::grid::BoundedGrid::new(math::vector_n::vec2(64, 64), smoothing);
 
-    let mut positions = Vec::new();
-    let mut masses = Vec::new();
-    for y in 0..32u8 {
-        for x in 0..16u8 {
-            let mut pos = sph::property::Position::new();
-            pos[0] = (x as f32) * smoothing * 0.6;
-            pos[1] = (y as f32) * smoothing * 0.6;
-            positions.push(pos);
-            masses.push(1.0f32);
+    {
+        let mut positions = Vec::new();
+        let mut masses = Vec::new();
+        for y in 0..20u8 {
+            for x in 0..20u8 {
+                let mut pos = sph::property::Position::new();
+                pos[0] = (x as f32) * smoothing * 0.9;
+                pos[1] = (y as f32) * smoothing * 0.9;
+                positions.push(pos);
+                masses.push(3.5f32);
+            }
         }
-    }
 
-    particles.add_particles(positions.len())
-             .with::<sph::property::Position<f32, U2>>(&positions)
-             .with::<sph::property::Mass<f32>>(&masses);
+        particles.add_particles(positions.len())
+                 .with::<sph::property::Position<f32, U2>>(&positions)
+                 .with::<sph::property::Mass<f32>>(&masses);
+    }
 
     let (width, height) = window.get_inner_size_points().unwrap();
     let aspect = (height as f32) / (width as f32);
@@ -132,15 +135,43 @@ fn main() {
             // Neighbor search
             particles.run(|p| {
                 let mut position = p.write_property::<sph::property::Position<f32, U2>>().unwrap();
-                position.sort_by_key(|pos| grid.get_key(pos));
+                let mut velocity = p.write_property::<sph::property::Velocity<f32, U2>>().unwrap();
+                let mut vel_pos = Vec::new();
+                for i in 0..position.len() {
+                    vel_pos.push((position[i], velocity[i]));
+                }
+                vel_pos.sort_by_key(|&(ref pos, _)| grid.get_key(pos)); // TODO: include velocity
+                for i in 0..position.len() {
+                    position[i] = vel_pos[i].0;
+                    velocity[i] = vel_pos[i].1;
+                }
                 grid.construct_ranges(position);
             });
 
             sph::reset_acceleration::<f32, U2>(&mut particles);
+
+            particles.run(|p| {
+                let mut accel = p.write_property::<sph::property::Acceleration<f32, U2>>().unwrap();
+                accel.par_iter_mut().for_each(|mut accel| {
+                    accel[1] += -2.0;
+                });
+            });
             
             sph::wcsph::compute_density(smoothing, &grid, &mut particles);
-            sph::wcsph::calculate_pressure(smoothing, 0.1, 0.2, &grid, &mut particles);
+            sph::wcsph::calculate_pressure(smoothing, 300.0, 12.0, &grid, &mut particles);
             sph::wcsph::integrate_explicit_euler(timestep, &mut particles);
+
+            particles.run(|p| {
+                let mut position = p.write_property::<sph::property::Position<f32, U2>>().unwrap();
+                let mut velocity = p.write_property::<sph::property::Velocity<f32, U2>>().unwrap();
+                position.par_iter_mut()
+                        .zip(velocity.par_iter_mut())
+                        .for_each(|(mut pos, mut vel)| {
+                           if pos[1] < 0.0 { pos[1] = 0.0; vel[1] = -vel[1] * 0.2; }
+                           if pos[0] < 0.0 { pos[0] = 0.0; vel[0] = -vel[0] * 0.2; }
+                           if pos[0] > 40.0 { pos[0] = 40.0; vel[0] = -vel[0] * 0.2; }
+                        });
+            });
         }
 
         // Update particle vertex data
@@ -150,13 +181,15 @@ fn main() {
             let density = p.read_property::<sph::property::Density<f32>>().unwrap();
             let accel = p.read_property::<sph::property::Acceleration<f32, U2>>().unwrap();
 
+            // println!("{:?}",density);
+
             for ((mut v, pos), &accel) in
                     vertex.iter_mut()
                      .zip(position.iter())
-                     .zip(accel.iter())
+                     .zip(density.iter())
             {
                 v.pos[0] = pos[0]; v.pos[1] = pos[1];
-                v.color[0] = accel[0].abs() / 4.0; v.color[1] = accel[1].abs() / 4.0; v.color[2] = 0.0;
+                v.color[0] = accel / 4.0; v.color[1] = 0.0; v.color[2] = 0.0;
             }
         });
 
