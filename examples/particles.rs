@@ -82,6 +82,7 @@ fn main() {
     };
 
     let smoothing = 2.0;
+    let timestep = 0.1f32;
     let mut particles = Particles::new();
     sph::wcsph::init::<f32, U2>(&mut particles);
     particles.add_property::<Vertex>();
@@ -90,7 +91,7 @@ fn main() {
 
     let mut positions = Vec::new();
     let mut masses = Vec::new();
-    for y in 0..16u8 {
+    for y in 0..32u8 {
         for x in 0..16u8 {
             let mut pos = sph::property::Position::new();
             pos[0] = (x as f32) * smoothing * 0.6;
@@ -108,7 +109,7 @@ fn main() {
     let aspect = (height as f32) / (width as f32);
 
     let view = cgmath::Matrix4::one();
-    let projection = cgmath::ortho(-100.0, 100.0, 100.0 * aspect, -100.0 * aspect, -5.0, 5.0);
+    let projection = cgmath::ortho(-100.0, 100.0, -100.0 * aspect, 100.0 * aspect, -5.0, 5.0);
 
     'main: loop {
         for event in window.poll_events() {
@@ -135,9 +136,11 @@ fn main() {
                 grid.construct_ranges(position);
             });
 
-            sph::wcsph::compute_density(smoothing, &grid, &mut particles);
             sph::reset_acceleration::<f32, U2>(&mut particles);
-            sph::wcsph::calculate_pressure(smoothing, 1.0, 2.0, &grid, &mut particles)
+            
+            sph::wcsph::compute_density(smoothing, &grid, &mut particles);
+            sph::wcsph::calculate_pressure(smoothing, 0.1, 0.2, &grid, &mut particles);
+            sph::wcsph::integrate_explicit_euler(timestep, &mut particles);
         }
 
         // Update particle vertex data
@@ -166,7 +169,7 @@ fn main() {
         };
 
         encoder.update_buffer(&data.vbuf, particles.read_property::<Vertex>().unwrap(), 0).unwrap();
-        encoder.clear(&data.out_color, [0.2, 0.2, 0.2, 1.0]);
+        encoder.clear(&data.out_color, [0.5, 0.5, 0.5, 1.0]);
         encoder.draw(&slice, &pso, &data);
         encoder.flush(&mut device);
         window.swap_buffers().unwrap();

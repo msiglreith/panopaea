@@ -86,3 +86,23 @@ pub fn calculate_pressure<T>(kernel_size: T, gas_constant: T, rest_density: T, g
             });
     });
 }
+
+pub fn integrate_explicit_euler<T>(timestep: T, particles: &mut Particles)
+    where T: Real + 'static,
+{
+    particles.run(|p| {
+        let (mut positions, mut velocities, accels) = (
+            p.write_property::<Position<T, U2>>().unwrap(),
+            p.write_property::<Velocity<T, U2>>().unwrap(),
+            p.read_property::<Acceleration<T, U2>>().unwrap(),
+        );
+
+        positions.par_iter_mut()
+            .zip(velocities.par_iter_mut())
+            .zip(accels.par_iter())
+            .for_each(|((mut pos, mut vel), &accel)| {
+                *vel += accel * timestep;
+                *pos += *vel * timestep;
+            });
+    });
+}
