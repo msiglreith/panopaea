@@ -17,7 +17,6 @@ use rayon::prelude::*;
 
 pub mod property {
     //! Common particle properties
-    use std::ops::{Deref, DerefMut};
     use math::{Real, Dim, VectorN};
     use particle::Property;
 

@@ -20,6 +20,7 @@ pub mod domain;
 pub mod grid;
 pub mod math;
 pub mod particle;
+pub mod pbd;
 pub mod pcg;
 pub mod solver;
 pub mod sparse;
