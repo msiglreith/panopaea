@@ -83,7 +83,7 @@ fn main() {
     };
 
     let smoothing = 2.0;
-    let timestep = 0.0005f32;
+    let timestep = 0.01f32;
     let mut particles = Particles::new();
     sph::wcsph::init::<f32, U2>(&mut particles);
     particles.add_property::<Vertex>();
@@ -94,12 +94,12 @@ fn main() {
         let mut positions = Vec::new();
         let mut masses = Vec::new();
         for y in 0..20u8 {
-            for x in 0..20u8 {
+            for x in 0..12u8 {
                 let mut pos = sph::property::Position::new();
-                pos[0] = (x as f32) * smoothing * 0.9;
-                pos[1] = (y as f32) * smoothing * 0.9;
+                pos[0] = (x as f32) * smoothing * 0.8;
+                pos[1] = (y as f32) * smoothing * 0.8;
                 positions.push(pos);
-                masses.push(3.5f32);
+                masses.push(3.0f32);
             }
         }
 
@@ -126,7 +126,7 @@ fn main() {
         let locals = Locals {
             view: view.into(),
             proj: projection.into(),
-            particle_size: 1.0,
+            particle_size: smoothing/2.0,
         };
         encoder.update_constant_buffer(&data.locals, &locals);
 
@@ -153,12 +153,12 @@ fn main() {
             particles.run(|p| {
                 let mut accel = p.write_property::<sph::property::Acceleration<f32, U2>>().unwrap();
                 accel.par_iter_mut().for_each(|mut accel| {
-                    accel[1] += -2.0;
+                    accel[1] += -10.0;
                 });
             });
             
             sph::wcsph::compute_density(smoothing, &grid, &mut particles);
-            sph::wcsph::calculate_pressure(smoothing, 300.0, 12.0, &grid, &mut particles);
+            sph::wcsph::calculate_pressure(smoothing, 30.0, 1.0, &grid, &mut particles);
             sph::wcsph::integrate_explicit_euler(timestep, &mut particles);
 
             particles.run(|p| {
@@ -174,6 +174,22 @@ fn main() {
             });
         }
 
+        // Neighbor search
+        particles.run(|p| {
+            let mut position = p.write_property::<sph::property::Position<f32, U2>>().unwrap();
+            let mut velocity = p.write_property::<sph::property::Velocity<f32, U2>>().unwrap();
+            let mut vel_pos = Vec::new();
+            for i in 0..position.len() {
+                vel_pos.push((position[i], velocity[i]));
+            }
+            vel_pos.sort_by_key(|&(ref pos, _)| grid.get_key(pos)); // TODO: include velocity
+            for i in 0..position.len() {
+                position[i] = vel_pos[i].0;
+                velocity[i] = vel_pos[i].1;
+            }
+            grid.construct_ranges(position);
+        });
+
         // Update particle vertex data
         particles.run(|p| {
             let mut vertex = p.write_property::<Vertex>().unwrap();
@@ -181,7 +197,8 @@ fn main() {
             let density = p.read_property::<sph::property::Density<f32>>().unwrap();
             let accel = p.read_property::<sph::property::Acceleration<f32, U2>>().unwrap();
 
-            // println!("{:?}",density);
+            println!("{:?}",density[2]);
+            println!("{:?}",accel[2]);
 
             for ((mut v, pos), &accel) in
                     vertex.iter_mut()
@@ -189,8 +206,18 @@ fn main() {
                      .zip(density.iter())
             {
                 v.pos[0] = pos[0]; v.pos[1] = pos[1];
-                v.color[0] = accel / 4.0; v.color[1] = 0.0; v.color[2] = 0.0;
+                v.color[0] = 0.0; v.color[1] = 0.0; v.color[2] = 0.0;
             }
+
+            let cell = if let Some(cell) = grid.get_cell(&position[2]) { cell } else { return };
+
+            grid.for_each_neighbor(cell, 1, |p| {
+                if p == 2 {
+                    vertex[p].color[1] = 1.0;
+                }
+                vertex[p].color[2] = 1.0;
+            });
+
         });
 
         let slice = gfx::Slice {
@@ -207,5 +234,7 @@ fn main() {
         encoder.flush(&mut device);
         window.swap_buffers().unwrap();
         device.cleanup();
+
+        println!("-----------");
     }
 }

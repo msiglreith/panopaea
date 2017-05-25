@@ -107,6 +107,7 @@ impl<S> BoundedGrid<S, U2>
         for y in cell.1.saturating_sub(bound)..upper_y {
             for x in cell.0.saturating_sub(bound)..upper_x {
                 let (start, end) = unsafe { self.get_range_unchecked((x, y)) };
+                assert!(start <= end);
                 for p in start..end {
                     fnc(p);
                 }

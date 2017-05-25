@@ -76,12 +76,12 @@ pub fn calculate_pressure<T>(kernel_size: T, gas_constant: T, rest_density: T, g
                 let pressure_i = gas_constant * ((density/rest_density).powi(7) - T::one());
 
                 grid.for_each_neighbor(cell, 1, |p| {
-                    let pressure_j = gas_constant * ((densities[p]/rest_density).powi(7) - T::one()).max(T::zero());
+                    let pressure_j = gas_constant * ((densities[p]/rest_density).powi(7) - T::one());
                     let density_j = densities[p];
                     let mass_j = masses[p];
                     let two = cast::<f64, T>(2.0).unwrap();
                     let r = pos - positions[p];
-                    *accel += r * (mass_j * spiky.grad_w(pos.distance(&positions[p])) * (pressure_j + pressure_i) / (two * density * density_j));
+                    *accel -= r * (mass_j * spiky.grad_w(pos.distance(&positions[p])) * (pressure_j + pressure_i) / (two * density_j));
                 });
             });
     });
