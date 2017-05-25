@@ -87,6 +87,36 @@ pub fn calculate_pressure<T>(kernel_size: T, gas_constant: T, rest_density: T, g
     });
 }
 
+pub fn calculate_viscosity<T>(kernel_size: T, viscosity: T, grid: &BoundedGrid<T, U2>, particles: &mut Particles)
+    where T: Real + 'static,
+{
+    particles.run(|p| {
+        let (densities, positions, velocities, mut accels, masses) = (
+            p.read_property::<Density<T>>().unwrap(),
+            p.read_property::<Position<T, U2>>().unwrap(),
+            p.read_property::<Velocity<T, U2>>().unwrap(),
+            p.write_property::<Acceleration<T, U2>>().unwrap(),
+            p.read_property::<Mass<T>>().unwrap(),
+        );
+
+        let visc = kernel::Viscosity::new(kernel_size);
+
+        densities.par_iter()
+           .zip(positions.par_iter())
+           .zip(velocities.par_iter())
+           .zip(accels.par_iter_mut())
+           .for_each(|(((&density, &pos), &vel), mut accel)| {
+                let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
+
+                grid.for_each_neighbor(cell, 1, |p| {
+                    let diff_vel = velocities[p] - vel;
+                    *accel += diff_vel * (viscosity * masses[p] / (density * densities[p]) * visc.laplace_w(pos.distance(&positions[p])));
+                });
+
+            });
+    });
+}
+
 pub fn integrate_explicit_euler<T>(timestep: T, particles: &mut Particles)
     where T: Real + 'static,
 {

@@ -82,24 +82,28 @@ fn main() {
         out_color: main_color,
     };
 
-    let smoothing = 2.0;
-    let timestep = 0.01f32;
+    let stiffness = 3.0;
+    let smoothing = 0.25;
+    let rest_density = 80.0;
+    let timestep = 0.001f32;
+    let mass = 0.125f32;
+    let viscosity = 1000.0f32;
     let mut particles = Particles::new();
     sph::wcsph::init::<f32, U2>(&mut particles);
     particles.add_property::<Vertex>();
 
-    let mut grid = sph::grid::BoundedGrid::new(math::vector_n::vec2(64, 64), smoothing);
+    let mut grid = sph::grid::BoundedGrid::new(math::vector_n::vec2(256, 256), smoothing);
 
     {
         let mut positions = Vec::new();
         let mut masses = Vec::new();
-        for y in 0..20u8 {
-            for x in 0..12u8 {
+        for y in 0..60u8 {
+            for x in 0..50u8 {
                 let mut pos = sph::property::Position::new();
-                pos[0] = (x as f32) * smoothing * 0.8;
-                pos[1] = (y as f32) * smoothing * 0.8;
+                pos[0] = (x as f32) * smoothing * 0.6;
+                pos[1] = (y as f32) * smoothing * 0.6;
                 positions.push(pos);
-                masses.push(3.0f32);
+                masses.push(mass);
             }
         }
 
@@ -112,7 +116,7 @@ fn main() {
     let aspect = (height as f32) / (width as f32);
 
     let view = cgmath::Matrix4::one();
-    let projection = cgmath::ortho(-100.0, 100.0, -100.0 * aspect, 100.0 * aspect, -5.0, 5.0);
+    let projection = cgmath::ortho(-40.0, 100.0, -40.0 * aspect, 100.0 * aspect, -5.0, 5.0);
 
     'main: loop {
         for event in window.poll_events() {
@@ -126,7 +130,7 @@ fn main() {
         let locals = Locals {
             view: view.into(),
             proj: projection.into(),
-            particle_size: smoothing/2.0,
+            particle_size: 0.1,
         };
         encoder.update_constant_buffer(&data.locals, &locals);
 
@@ -158,7 +162,13 @@ fn main() {
             });
             
             sph::wcsph::compute_density(smoothing, &grid, &mut particles);
-            sph::wcsph::calculate_pressure(smoothing, 30.0, 1.0, &grid, &mut particles);
+            /*
+            particles.run(|p| {
+                println!("{:?}", p.read_property::<sph::property::Density<f32>>().unwrap());
+            });
+            */
+            sph::wcsph::calculate_pressure(smoothing, stiffness, rest_density, &grid, &mut particles);
+            sph::wcsph::calculate_viscosity(smoothing, viscosity, &grid, &mut particles);
             sph::wcsph::integrate_explicit_euler(timestep, &mut particles);
 
             particles.run(|p| {
@@ -167,9 +177,10 @@ fn main() {
                 position.par_iter_mut()
                         .zip(velocity.par_iter_mut())
                         .for_each(|(mut pos, mut vel)| {
-                           if pos[1] < 0.0 { pos[1] = 0.0; vel[1] = -vel[1] * 0.2; }
-                           if pos[0] < 0.0 { pos[0] = 0.0; vel[0] = -vel[0] * 0.2; }
-                           if pos[0] > 40.0 { pos[0] = 40.0; vel[0] = -vel[0] * 0.2; }
+                           if pos[1] < 0.0 { pos[1] = 0.0; vel[1] = -vel[1] * 0.01; }
+                           if pos[1] > 100.0 * smoothing { pos[1] = 100.0 * smoothing; vel[1] = -vel[1] * 0.01; }
+                           if pos[0] < 0.0 { pos[0] = 0.0; vel[0] = -vel[0] * 0.01; }
+                           if pos[0] > 100.0 * smoothing { pos[0] = 100.0 * smoothing; vel[0] = -vel[0] * 0.01; }
                         });
             });
         }
