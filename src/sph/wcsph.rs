@@ -32,9 +32,9 @@ pub fn compute_density<T>(kernel_size: T, grid: &BoundedGrid<T, U2>, particles: 
 {
     particles.run(|p| {
         let (mut density, position, masses) = (
-            p.write_property::<Density<T>>().unwrap(),
-            p.read_property::<Position<T, U2>>().unwrap(),
-            p.read_property::<Mass<T>>().unwrap(),
+            p.write_property::<Density<T>>(),
+            p.read_property::<Position<T, U2>>(),
+            p.read_property::<Mass<T>>(),
         );
 
         let poly_6 = kernel::Poly6::new(kernel_size);
@@ -61,10 +61,10 @@ pub fn calculate_pressure<T>(kernel_size: T, gas_constant: T, rest_density: T, g
 {
     particles.run(|p| {
         let (densities, positions, mut accels, masses) = (
-            p.read_property::<Density<T>>().unwrap(),
-            p.read_property::<Position<T, U2>>().unwrap(),
-            p.write_property::<Acceleration<T, U2>>().unwrap(),
-            p.read_property::<Mass<T>>().unwrap(),
+            p.read_property::<Density<T>>(),
+            p.read_property::<Position<T, U2>>(),
+            p.write_property::<Acceleration<T, U2>>(),
+            p.read_property::<Mass<T>>(),
         );
 
         let spiky = kernel::Poly6::new(kernel_size);
@@ -93,11 +93,11 @@ pub fn calculate_viscosity<T>(kernel_size: T, viscosity: T, grid: &BoundedGrid<T
 {
     particles.run(|p| {
         let (densities, positions, velocities, mut accels, masses) = (
-            p.read_property::<Density<T>>().unwrap(),
-            p.read_property::<Position<T, U2>>().unwrap(),
-            p.read_property::<Velocity<T, U2>>().unwrap(),
-            p.write_property::<Acceleration<T, U2>>().unwrap(),
-            p.read_property::<Mass<T>>().unwrap(),
+            p.read_property::<Density<T>>(),
+            p.read_property::<Position<T, U2>>(),
+            p.read_property::<Velocity<T, U2>>(),
+            p.write_property::<Acceleration<T, U2>>(),
+            p.read_property::<Mass<T>>(),
         );
 
         let visc = kernel::Viscosity::new(kernel_size);
@@ -124,9 +124,9 @@ pub fn integrate_explicit_euler<T>(timestep: T, particles: &mut Particles)
 {
     particles.run(|p| {
         let (mut positions, mut velocities, accels) = (
-            p.write_property::<Position<T, U2>>().unwrap(),
-            p.write_property::<Velocity<T, U2>>().unwrap(),
-            p.read_property::<Acceleration<T, U2>>().unwrap(),
+            p.write_property::<Position<T, U2>>(),
+            p.write_property::<Velocity<T, U2>>(),
+            p.read_property::<Acceleration<T, U2>>(),
         );
 
         positions.par_iter_mut()

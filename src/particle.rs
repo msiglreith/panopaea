@@ -33,26 +33,28 @@ impl Particles {
         });
     }
 
-    pub fn read_property<T: Property>(&self) -> Option<&[T::Subtype]> {
-        unsafe { self.get_property::<T>().map(|property| property.as_slice()) }
+    pub fn read_property<T: Property>(&self) -> &[T::Subtype] {
+        unsafe { self.get_property::<T>().as_slice() }
     }
 
-    pub fn write_property<T: Property>(&mut self) -> Option<&mut [T::Subtype]> {
-        unsafe { self.get_property_mut::<T>().map(|property| property.as_mut_slice()) }
+    pub fn write_property<T: Property>(&mut self) -> &mut [T::Subtype] {
+        unsafe { self.get_property_mut::<T>().as_mut_slice() }
     }
 
-    unsafe fn get_property<T: Property>(&self) -> Option<&Vec<T::Subtype>> {
+    unsafe fn get_property<T: Property>(&self) -> &Vec<T::Subtype> {
         let type_id = TypeId::of::<T>();
         self.properties.get(&type_id)
                        .and_then(|property| property.downcast_ref::<VecStorage<T>>())
                        .map(|&(ref vec, _)| vec)
+                       .expect("Unregisted property")
     }
 
-    unsafe fn get_property_mut<T: Property>(&self) -> Option<&mut Vec<T::Subtype>> {
+    unsafe fn get_property_mut<T: Property>(&self) -> &mut Vec<T::Subtype> {
         let type_id = TypeId::of::<T>();
         self.properties.get(&type_id)
                        .and_then(|property| (*(property as *const _ as *mut Box<Storage>)).downcast_mut::<VecStorage<T>>()) // TODO: something safer would be appreciated
                        .map(|&mut (ref mut vec, _)| vec)
+                       .expect("Unregisted property")
     }
 
     pub fn reserve(&mut self, additional: usize) {
@@ -82,7 +84,8 @@ pub struct Builder<'a>(&'a mut Particles);
 impl<'a> Builder<'a> {
     pub fn with<T: Property>(&mut self, values: &[T::Subtype]) -> &mut Self {
         let num_particles = self.0.num_particles;
-        if let Some(mut storage) = unsafe { self.0.get_property_mut::<T>() } {
+        {
+            let storage = unsafe { self.0.get_property_mut::<T>() };
             debug_assert_eq!(values.len(), num_particles - storage.len());
             storage.extend_from_slice(values);
         }
@@ -106,12 +109,12 @@ impl<'a> Drop for Builder<'a> {
 
 pub struct Processor<'a>(&'a mut Particles);
 impl<'a> Processor<'a> {
-    pub fn read_property<T: Property>(&self) -> Option<&[T::Subtype]> {
-        unsafe { self.0.get_property::<T>().map(|property| property.as_slice()) }
+    pub fn read_property<T: Property>(&self) -> &[T::Subtype] {
+        unsafe { self.0.get_property::<T>().as_slice() }
     }
 
-    pub fn write_property<T: Property>(&self) -> Option<&mut [T::Subtype]> {
-        unsafe { self.0.get_property_mut::<T>().map(|property| property.as_mut_slice()) }
+    pub fn write_property<T: Property>(&self) -> &mut [T::Subtype] {
+        unsafe { self.0.get_property_mut::<T>().as_mut_slice() }
     }
 }
 

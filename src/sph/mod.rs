@@ -75,7 +75,7 @@ pub fn reset_acceleration<T, N>(particles: &mut Particles)
 {
     use self::property::Acceleration;
     particles.run(|p| {
-        let mut accel = p.write_property::<Acceleration<T, N>>().unwrap();
+        let mut accel = p.write_property::<Acceleration<T, N>>();
         accel.par_iter_mut().for_each(|mut a| *a = Acceleration::<T, N>::new() );
     });
 }
