@@ -31,7 +31,7 @@ pub fn compute_density<T>(kernel_size: T, grid: &BoundedGrid<T, U2>, particles: 
           // N: Dim<T> + Dim<usize> + Dim<(usize, usize)>,
 {
     particles.run(|p| {
-        let (mut density, position, mass) = (
+        let (mut density, position, masses) = (
             p.write_property::<Density<T>>().unwrap(),
             p.read_property::<Position<T, U2>>().unwrap(),
             p.read_property::<Mass<T>>().unwrap(),
@@ -40,14 +40,15 @@ pub fn compute_density<T>(kernel_size: T, grid: &BoundedGrid<T, U2>, particles: 
         let poly_6 = kernel::Poly6::new(kernel_size);
 
         density.par_iter_mut().enumerate()
+            .zip(masses.par_iter())
             .zip(position.par_iter())
-            .for_each(|((i, mut density), pos)| {
+            .for_each(|(((i, mut density), &mass), pos)| {
                 let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
 
-                let mut d = poly_6.w(T::zero());
+                let mut d = mass * poly_6.w(T::zero());
                 grid.for_each_neighbor(cell, 1, |p| {
                     if p == i { return }
-                    d += mass[p] * poly_6.w(pos.distance(&position[p]));
+                    d += masses[p] * poly_6.w(pos.distance(&position[p]));
                 });
 
                 *density = d;
@@ -75,7 +76,6 @@ pub fn calculate_pressure<T>(kernel_size: T, gas_constant: T, rest_density: T, g
                 let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
                 let pressure_i = gas_constant * (density - rest_density);
 
-                // TODO: skip own?
                 grid.for_each_neighbor(cell, 1, |p| {
                     let pressure_j = gas_constant * (densities[p] - rest_density);
                     let density_j = densities[p];
