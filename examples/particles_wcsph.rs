@@ -17,7 +17,7 @@ use cgmath::Transform;
 use generic_array::typenum::U2;
 use rayon::prelude::*;
 
-pub type ColorFormat = gfx::format::Srgba8;
+pub type ColorFormat = gfx::format::Rgba8;
 pub type DepthFormat = gfx::format::DepthStencil;
 
 gfx_defines!{
@@ -83,11 +83,12 @@ fn main() {
     };
 
     let stiffness = 3.0;
-    let smoothing = 0.25;
-    let rest_density = 80.0;
-    let timestep = 0.001f32;
-    let mass = 0.125f32;
-    let viscosity = 1000.0f32;
+    let smoothing = 0.03;
+    let rest_density = 1000.0;
+    let timestep = 0.0005f32;
+    let mass = 0.015f32;
+    let viscosity = 3.5f32;
+    let border = 40.0;
     let mut particles = Particles::new();
     sph::wcsph::init::<f32, U2>(&mut particles);
     particles.add_property::<Vertex>();
@@ -97,8 +98,8 @@ fn main() {
     {
         let mut positions = Vec::new();
         let mut masses = Vec::new();
-        for y in 0..60u8 {
-            for x in 0..50u8 {
+        for y in 0..30u8 {
+            for x in 0..30u8 {
                 let mut pos = sph::property::Position::new();
                 pos[0] = (x as f32) * smoothing * 0.6;
                 pos[1] = (y as f32) * smoothing * 0.6;
@@ -116,8 +117,9 @@ fn main() {
     let aspect = (height as f32) / (width as f32);
 
     let view = cgmath::Matrix4::one();
-    let projection = cgmath::ortho(-40.0, 100.0, -40.0 * aspect, 100.0 * aspect, -5.0, 5.0);
+    let projection = cgmath::ortho(-1.0, 2.0, -1.0 * aspect, 2.0 * aspect, -5.0, 5.0);
 
+    let mut iterations = 0;
     'main: loop {
         for event in window.poll_events() {
             match event {
@@ -127,86 +129,71 @@ fn main() {
             }
         }
 
+
+        iterations += 1;
+
         let locals = Locals {
             view: view.into(),
             proj: projection.into(),
-            particle_size: 0.1,
+            particle_size: 0.01,
         };
         encoder.update_constant_buffer(&data.locals, &locals);
 
         // SPH simulation step
         {
-            // Neighbor search
-            particles.run(|p| {
-                let mut position = p.write_property::<sph::property::Position<f32, U2>>().unwrap();
-                let mut velocity = p.write_property::<sph::property::Velocity<f32, U2>>().unwrap();
-                let mut vel_pos = Vec::new();
-                for i in 0..position.len() {
-                    vel_pos.push((position[i], velocity[i]));
-                }
-                vel_pos.sort_by_key(|&(ref pos, _)| grid.get_key(pos)); // TODO: include velocity
-                for i in 0..position.len() {
-                    position[i] = vel_pos[i].0;
-                    velocity[i] = vel_pos[i].1;
-                }
-                grid.construct_ranges(position);
-            });
-
-            sph::reset_acceleration::<f32, U2>(&mut particles);
-
-            particles.run(|p| {
-                let mut accel = p.write_property::<sph::property::Acceleration<f32, U2>>().unwrap();
-                accel.par_iter_mut().for_each(|mut accel| {
-                    accel[1] += -10.0;
-                });
-            });
-            
-            sph::wcsph::compute_density(smoothing, &grid, &mut particles);
-            /*
-            particles.run(|p| {
-                println!("{:?}", p.read_property::<sph::property::Density<f32>>().unwrap());
-            });
-            */
-            sph::wcsph::calculate_pressure(smoothing, stiffness, rest_density, &grid, &mut particles);
-            sph::wcsph::calculate_viscosity(smoothing, viscosity, &grid, &mut particles);
-            sph::wcsph::integrate_explicit_euler(timestep, &mut particles);
-
-            particles.run(|p| {
-                let mut position = p.write_property::<sph::property::Position<f32, U2>>().unwrap();
-                let mut velocity = p.write_property::<sph::property::Velocity<f32, U2>>().unwrap();
-                position.par_iter_mut()
+            particles
+                // Neighbor search
+                .run(|p| {
+                    let mut position = p.write_property::<sph::property::Position<f32, U2>>();
+                    let mut velocity = p.write_property::<sph::property::Velocity<f32, U2>>();
+                    let mut vel_pos = Vec::new();
+                    for i in 0..position.len() {
+                        vel_pos.push((position[i], velocity[i]));
+                    }
+                    vel_pos.sort_by_key(|&(ref pos, _)| grid.get_key(pos));
+                    for i in 0..position.len() {
+                        position[i] = vel_pos[i].0; velocity[i] = vel_pos[i].1;
+                    }
+                    grid.construct_ranges(position);
+                })
+                // Reset acceleration
+                .run(sph::reset_acceleration::<f32, U2>)
+                // Apply external forces
+                .run(|p| {
+                    let mut accel = p.write_property::<sph::property::Acceleration<f32, U2>>();
+                    accel.par_iter_mut().for_each(|mut accel| {
+                        accel[1] += -10.0; // gravity
+                    });
+                })
+                // Compute density
+                .run1(sph::wcsph::compute_density, (smoothing, &grid))
+                // Calculate pressure force
+                .run1(sph::wcsph::calculate_pressure, (smoothing, stiffness, rest_density, &grid))
+                // Calculate viscosity force
+                .run1(sph::wcsph::calculate_viscosity, (smoothing, viscosity, &grid))
+                // Integrate position and velocity (apply force)
+                .run1(sph::wcsph::integrate_explicit_euler, timestep)
+                // Boundary checks
+                .run(|p| {
+                    let mut position = p.write_property::<sph::property::Position<f32, U2>>();
+                    let mut velocity = p.write_property::<sph::property::Velocity<f32, U2>>();
+                    position.par_iter_mut()
                         .zip(velocity.par_iter_mut())
                         .for_each(|(mut pos, mut vel)| {
-                           if pos[1] < 0.0 { pos[1] = 0.0; vel[1] = -vel[1] * 0.01; }
-                           if pos[1] > 100.0 * smoothing { pos[1] = 100.0 * smoothing; vel[1] = -vel[1] * 0.01; }
-                           if pos[0] < 0.0 { pos[0] = 0.0; vel[0] = -vel[0] * 0.01; }
-                           if pos[0] > 100.0 * smoothing { pos[0] = 100.0 * smoothing; vel[0] = -vel[0] * 0.01; }
+                           if pos[1] < 0.0 { pos[1] = 0.0; vel[1] = -vel[1] * 0.0; }
+                           if pos[1] > border * smoothing { pos[1] = border * smoothing; vel[1] = -vel[1] * 0.0; }
+                           if pos[0] < 0.0 { pos[0] = 0.0; vel[0] = -vel[0] * 0.0; }
+                           if pos[0] > border * smoothing { pos[0] = border * smoothing; vel[0] = -vel[0] * 0.0; }
                         });
-            });
+                });
         }
-
-        // Neighbor search
-        particles.run(|p| {
-            let mut position = p.write_property::<sph::property::Position<f32, U2>>().unwrap();
-            let mut velocity = p.write_property::<sph::property::Velocity<f32, U2>>().unwrap();
-            let mut vel_pos = Vec::new();
-            for i in 0..position.len() {
-                vel_pos.push((position[i], velocity[i]));
-            }
-            vel_pos.sort_by_key(|&(ref pos, _)| grid.get_key(pos)); // TODO: include velocity
-            for i in 0..position.len() {
-                position[i] = vel_pos[i].0;
-                velocity[i] = vel_pos[i].1;
-            }
-            grid.construct_ranges(position);
-        });
 
         // Update particle vertex data
         particles.run(|p| {
-            let mut vertex = p.write_property::<Vertex>().unwrap();
-            let position = p.read_property::<sph::property::Position<f32, U2>>().unwrap();
-            let density = p.read_property::<sph::property::Density<f32>>().unwrap();
-            let accel = p.read_property::<sph::property::Acceleration<f32, U2>>().unwrap();
+            let mut vertex = p.write_property::<Vertex>();
+            let position = p.read_property::<sph::property::Position<f32, U2>>();
+            let density = p.read_property::<sph::property::Density<f32>>();
+            let accel = p.read_property::<sph::property::Acceleration<f32, U2>>();
 
             println!("{:?}",density[2]);
             println!("{:?}",accel[2]);
@@ -217,17 +204,8 @@ fn main() {
                      .zip(density.iter())
             {
                 v.pos[0] = pos[0]; v.pos[1] = pos[1];
-                v.color[0] = 0.0; v.color[1] = 0.0; v.color[2] = 0.0;
+                v.color[0] = 0.2 * accel / rest_density; v.color[1] = 0.0; v.color[2] = 0.0;
             }
-
-            let cell = if let Some(cell) = grid.get_cell(&position[2]) { cell } else { return };
-
-            grid.for_each_neighbor(cell, 1, |p| {
-                if p == 2 {
-                    vertex[p].color[1] = 1.0;
-                }
-                vertex[p].color[2] = 1.0;
-            });
 
         });
 
@@ -239,7 +217,7 @@ fn main() {
             buffer: gfx::IndexBuffer::Auto,
         };
 
-        encoder.update_buffer(&data.vbuf, particles.read_property::<Vertex>().unwrap(), 0).unwrap();
+        encoder.update_buffer(&data.vbuf, particles.read_property::<Vertex>(), 0).unwrap();
         encoder.clear(&data.out_color, [0.5, 0.5, 0.5, 1.0]);
         encoder.draw(&slice, &pso, &data);
         encoder.flush(&mut device);
