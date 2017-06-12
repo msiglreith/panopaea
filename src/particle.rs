@@ -69,9 +69,26 @@ impl Particles {
         Builder(self)
     }
 
-    pub fn run<'a, F>(&'a mut self, func: F)
-        where F: FnOnce(Processor<'a>) {
+    pub fn run<F>(&mut self, func: F) -> &mut Self
+        where F: FnOnce(Processor)
+    {
         func(Processor(self));
+        self
+    }
+
+    pub fn run1<A>(&mut self, func: fn(Processor, A), a: A) -> &mut Self {
+        func(Processor(self), a);
+        self
+    }
+
+    pub fn run2<A, B>(&mut self, func: fn(Processor, A, B), a: A, b: B) -> &mut Self {
+        func(Processor(self), a, b);
+        self
+    }
+
+    pub fn run3<A, B, C>(&mut self, func: fn(Processor, A, B, C), a: A, b: B, c: C) -> &mut Self {
+        func(Processor(self), a, b, c);
+        self
     }
 
     pub fn num_particles(&self) -> usize {

@@ -3,7 +3,7 @@
 
 use cgmath::MetricSpace;
 use math::{Dim, Real};
-use particle::{Particles};
+use particle::{Particles, Processor};
 use rayon::prelude::*;
 use typenum::U2;
 use num::cast;
@@ -26,115 +26,107 @@ pub fn init<T, N>(particles: &mut Particles)
 /// Compute particle density approximation based on the smoothing kernel.
 ///
 /// Ref: [MDM03] Eq. 3
-pub fn compute_density<T>(kernel_size: T, grid: &BoundedGrid<T, U2>, particles: &mut Particles)
+pub fn compute_density<T>(p: Processor, (kernel_size, grid): (T, &BoundedGrid<T, U2>))
     where T: Real + 'static,
           // N: Dim<T> + Dim<usize> + Dim<(usize, usize)>,
 {
-    particles.run(|p| {
-        let (mut density, position, masses) = (
-            p.write_property::<Density<T>>(),
-            p.read_property::<Position<T, U2>>(),
-            p.read_property::<Mass<T>>(),
-        );
+    let (mut density, position, masses) = (
+        p.write_property::<Density<T>>(),
+        p.read_property::<Position<T, U2>>(),
+        p.read_property::<Mass<T>>(),
+    );
 
-        let poly_6 = kernel::Poly6::new(kernel_size);
+    let poly_6 = kernel::Poly6::new(kernel_size);
 
-        density.par_iter_mut().enumerate()
-            .zip(masses.par_iter())
-            .zip(position.par_iter())
-            .for_each(|(((i, mut density), &mass), pos)| {
-                let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
+    density.par_iter_mut().enumerate()
+        .zip(masses.par_iter())
+        .zip(position.par_iter())
+        .for_each(|(((i, mut density), &mass), pos)| {
+            let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
 
-                let mut d = mass * poly_6.w(T::zero());
-                grid.for_each_neighbor(cell, 1, |p| {
-                    if p == i { return }
-                    d += masses[p] * poly_6.w(pos.distance(&position[p]));
-                });
-
-                *density = d;
+            let mut d = mass * poly_6.w(T::zero());
+            grid.for_each_neighbor(cell, 1, |p| {
+                if p == i { return }
+                d += masses[p] * poly_6.w(pos.distance(&position[p]));
             });
-    });
+
+            *density = d;
+        });
 }
 
-pub fn calculate_pressure<T>(kernel_size: T, gas_constant: T, rest_density: T, grid: &BoundedGrid<T, U2>, particles: &mut Particles)
+pub fn calculate_pressure<T>(p: Processor, (kernel_size, gas_constant, rest_density, grid): (T, T, T, &BoundedGrid<T, U2>))
     where T: Real + 'static,
 {
-    particles.run(|p| {
-        let (densities, positions, mut accels, masses) = (
-            p.read_property::<Density<T>>(),
-            p.read_property::<Position<T, U2>>(),
-            p.write_property::<Acceleration<T, U2>>(),
-            p.read_property::<Mass<T>>(),
-        );
+    let (densities, positions, mut accels, masses) = (
+        p.read_property::<Density<T>>(),
+        p.read_property::<Position<T, U2>>(),
+        p.write_property::<Acceleration<T, U2>>(),
+        p.read_property::<Mass<T>>(),
+    );
 
-        let spiky = kernel::Poly6::new(kernel_size);
+    let spiky = kernel::Poly6::new(kernel_size);
 
-        densities.par_iter()
-           .zip(positions.par_iter())
-           .zip(accels.par_iter_mut())
-           .for_each(|((&density, &pos), mut accel)| {
-                let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
-                let pressure_i = gas_constant * (density - rest_density);
+    densities.par_iter()
+       .zip(positions.par_iter())
+       .zip(accels.par_iter_mut())
+       .for_each(|((&density, &pos), mut accel)| {
+            let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
+            let pressure_i = gas_constant * (density - rest_density);
 
-                grid.for_each_neighbor(cell, 1, |p| {
-                    let pressure_j = gas_constant * (densities[p] - rest_density);
-                    let density_j = densities[p];
-                    let mass_j = masses[p];
-                    let two = cast::<f64, T>(2.0).unwrap();
-                    let r = pos - positions[p];
-                    *accel -= r * (mass_j * spiky.grad_w(pos.distance(&positions[p])) * (pressure_j + pressure_i) / (two * density_j * density));
-                });
+            grid.for_each_neighbor(cell, 1, |p| {
+                let pressure_j = gas_constant * (densities[p] - rest_density);
+                let density_j = densities[p];
+                let mass_j = masses[p];
+                let two = cast::<f64, T>(2.0).unwrap();
+                let r = pos - positions[p];
+                *accel -= r * (mass_j * spiky.grad_w(pos.distance(&positions[p])) * (pressure_j + pressure_i) / (two * density_j * density));
             });
-    });
+        });
 }
 
-pub fn calculate_viscosity<T>(kernel_size: T, viscosity: T, grid: &BoundedGrid<T, U2>, particles: &mut Particles)
+pub fn calculate_viscosity<T>(p: Processor, (kernel_size,viscosity, grid): (T, T, &BoundedGrid<T, U2>))
     where T: Real + 'static,
 {
-    particles.run(|p| {
-        let (densities, positions, velocities, mut accels, masses) = (
-            p.read_property::<Density<T>>(),
-            p.read_property::<Position<T, U2>>(),
-            p.read_property::<Velocity<T, U2>>(),
-            p.write_property::<Acceleration<T, U2>>(),
-            p.read_property::<Mass<T>>(),
-        );
+    let (densities, positions, velocities, mut accels, masses) = (
+        p.read_property::<Density<T>>(),
+        p.read_property::<Position<T, U2>>(),
+        p.read_property::<Velocity<T, U2>>(),
+        p.write_property::<Acceleration<T, U2>>(),
+        p.read_property::<Mass<T>>(),
+    );
 
-        let visc = kernel::Viscosity::new(kernel_size);
+    let visc = kernel::Viscosity::new(kernel_size);
 
-        densities.par_iter()
-           .zip(positions.par_iter())
-           .zip(velocities.par_iter())
-           .zip(accels.par_iter_mut())
-           .for_each(|(((&density, &pos), &vel), mut accel)| {
-                let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
+    densities.par_iter()
+       .zip(positions.par_iter())
+       .zip(velocities.par_iter())
+       .zip(accels.par_iter_mut())
+       .for_each(|(((&density, &pos), &vel), mut accel)| {
+            let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
 
-                // TODO: skip own?
-                grid.for_each_neighbor(cell, 1, |p| {
-                    let diff_vel = velocities[p] - vel;
-                    *accel += diff_vel * (viscosity * masses[p] / (density * densities[p]) * visc.laplace_w(pos.distance(&positions[p])));
-                });
-
+            // TODO: skip own?
+            grid.for_each_neighbor(cell, 1, |p| {
+                let diff_vel = velocities[p] - vel;
+                *accel += diff_vel * (viscosity * masses[p] / (density * densities[p]) * visc.laplace_w(pos.distance(&positions[p])));
             });
-    });
+
+        });
 }
 
-pub fn integrate_explicit_euler<T>(timestep: T, particles: &mut Particles)
+pub fn integrate_explicit_euler<T>(p: Processor, timestep: T)
     where T: Real + 'static,
 {
-    particles.run(|p| {
-        let (mut positions, mut velocities, accels) = (
-            p.write_property::<Position<T, U2>>(),
-            p.write_property::<Velocity<T, U2>>(),
-            p.read_property::<Acceleration<T, U2>>(),
-        );
+    let (mut positions, mut velocities, accels) = (
+        p.write_property::<Position<T, U2>>(),
+        p.write_property::<Velocity<T, U2>>(),
+        p.read_property::<Acceleration<T, U2>>(),
+    );
 
-        positions.par_iter_mut()
-            .zip(velocities.par_iter_mut())
-            .zip(accels.par_iter())
-            .for_each(|((mut pos, mut vel), &accel)| {
-                *vel += accel * timestep;
-                *pos += *vel * timestep;
-            });
-    });
+    positions.par_iter_mut()
+        .zip(velocities.par_iter_mut())
+        .zip(accels.par_iter())
+        .for_each(|((mut pos, mut vel), &accel)| {
+            *vel += accel * timestep;
+            *pos += *vel * timestep;
+        });
 }

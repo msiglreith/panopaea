@@ -12,7 +12,7 @@ pub mod kernel;
 pub mod wcsph;
 
 use math::{Real, Dim};
-use particle::{Particles, Property};
+use particle::{Processor, Property};
 use rayon::prelude::*;
 
 pub mod property {
@@ -70,12 +70,10 @@ pub mod property {
 }
 
 // TODO: move this into Particles to allow reseting all kind of properties
-pub fn reset_acceleration<T, N>(particles: &mut Particles)
+pub fn reset_acceleration<T, N>(p: Processor)
     where T: Real, N: Dim<T>
 {
     use self::property::Acceleration;
-    particles.run(|p| {
-        let mut accel = p.write_property::<Acceleration<T, N>>();
-        accel.par_iter_mut().for_each(|mut a| *a = Acceleration::<T, N>::new() );
-    });
+    let mut accel = p.write_property::<Acceleration<T, N>>();
+    accel.par_iter_mut().for_each(|mut a| *a = Acceleration::<T, N>::new() );
 }
