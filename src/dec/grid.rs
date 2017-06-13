@@ -46,7 +46,7 @@ impl<T> LinearView for Staggered2d<T> {
 }
 
 impl<T> Manifold2d<T> for Grid2d
-    where T: LinalgScalar + Neg<Output = T>
+    where T: LinalgScalar + Neg<Output = T> + Send + Sync
 {
     type Simplex0 = Array<T, Ix2>;
     type Simplex1 = Staggered2d<T>;
@@ -78,7 +78,7 @@ impl<T> Manifold2d<T> for Grid2d
     fn new_simplex_2(&self) -> Self::Simplex2 {
         Array::from_elem((self.dim().0, self.dim().1), T::zero()) // faces
     }
-    
+
     fn derivative_0_primal(&self, edges: &mut Self::Simplex1, vertices: &Self::Simplex0) {
         let mut edges = edges.split_mut();
 
@@ -111,7 +111,7 @@ impl<T> Manifold2d<T> for Grid2d
             f0 (faces.slice(s![.., ..-1])),
             f1 (faces.slice(s![.., 1..]))
          in { *edge = f0 - f1; });
-        
+
     }
 
     fn derivative_1_primal(&self, faces: &mut Self::Simplex2, edges: &Self::Simplex1) {
@@ -270,7 +270,7 @@ impl<T> Manifold2d<T> for Grid2d
         let one = T::one();
         let mut idx = 0;
 
-        // horizontal edges     
+        // horizontal edges
         for y in 0..(h+1) {
             for x in 0..w {
                 let v_idx = y*(w+1) + x;

@@ -1,7 +1,7 @@
 
 use cgmath::BaseFloat;
 use na;
-use ndarray::{ArrayBase, ArrayView, ArrayViewMut, Dimension, Ix1};
+use ndarray::{Array, ArrayBase, ArrayView, ArrayViewMut, Dimension, Ix1};
 use generic_array::ArrayLength;
 
 pub mod vector_n;
@@ -50,7 +50,7 @@ pub trait LinearViewReal<A: Real> : LinearView<Elem = A> {
 
 impl<T, A: Real> LinearViewReal<A> for T where T: LinearView<Elem = A> { }
 
-impl<A, D: Dimension> LinearView for ArrayBase<Vec<A>, D> {
+impl<A, D: Dimension> LinearView for Array<A, D> {
     type Elem = A;
     fn view_linear(&self) -> ArrayView<A, Ix1> {
         unsafe { ArrayView::<A, Ix1>::from_shape_ptr(self.len(), self.as_ptr()) }

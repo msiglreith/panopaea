@@ -17,7 +17,7 @@ impl<A: LinalgScalar> DiagonalMatrix<A> {
     }
 }
 
-impl<A: LinalgScalar> DiagonalMatrix<A> {
+impl<A: LinalgScalar + Send + Sync> DiagonalMatrix<A> {
     pub fn mul_vec(&self, mut b: ArrayViewMut<A, Ix1>, x: ArrayView<A, Ix1>) {
         let a: ArrayView<A, Ix1> = self.data.as_slice().into();
         azip_par!(mut b, x, a in { *b = x * a });
@@ -89,7 +89,7 @@ impl<A> SparseMatrix<A> {
     }
 }
 
-impl<A> SparseMatrix<A> 
+impl<A> SparseMatrix<A>
     where A: LinalgScalar
 {
     pub fn mul_grid_simplex_0(&self, mut b: &mut (Array<A, Ix2>, Array<A, Ix2>), x: &Array<A, Ix2>) {

@@ -38,20 +38,21 @@ pub fn compute_density<T>(p: Processor, (kernel_size, grid): (T, &BoundedGrid<T,
 
     let poly_6 = kernel::Poly6::new(kernel_size);
 
-    density.par_iter_mut().enumerate()
-        .zip(masses.par_iter())
-        .zip(position.par_iter())
-        .for_each(|(((i, mut density), &mass), pos)| {
-            let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
+    azip_indexed_par!(
+        mut density (density),
+        mass (masses),
+        pos (position)
+    indexed {
+        let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
 
-            let mut d = mass * poly_6.w(T::zero());
-            grid.for_each_neighbor(cell, 1, |p| {
-                if p == i { return }
-                d += masses[p] * poly_6.w(pos.distance(&position[p]));
-            });
-
-            *density = d;
+        let mut d = mass * poly_6.w(T::zero());
+        grid.for_each_neighbor(cell, 1, |p| {
+            // if p == i { return }
+            d += masses[p] * poly_6.w(pos.distance(&position[p]));
         });
+
+        *density = d;
+    });
 }
 
 pub fn calculate_pressure<T>(p: Processor, (kernel_size, gas_constant, rest_density, grid): (T, T, T, &BoundedGrid<T, U2>))

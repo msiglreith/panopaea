@@ -8,7 +8,7 @@ pub trait Grid<A: LinalgScalar, D> : LinearView<Elem = A> {
     fn min_max(&self) -> (f64, f64);
 }
 
-impl<D: Dimension> Grid<f64, D> for ArrayBase<Vec<f64>, D> {
+impl<D: Dimension> Grid<f64, D> for Array<f64, D> {
     fn min_max(&self) -> (f64, f64) {
         let min = self.iter().fold(f64::INFINITY, |min, &x| f64::min(min, x));
         let max = self.iter().fold(f64::NEG_INFINITY, |max, &x| f64::max(max, x));

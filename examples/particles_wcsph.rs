@@ -50,7 +50,7 @@ impl Property for Vertex {
 }
 
 fn main() {
-    rayon::initialize(rayon::Configuration::new().num_threads(1));
+    // rayon::initialize(rayon::Configuration::new().num_threads(4));
 
     let builder = glutin::WindowBuilder::new()
         .with_dimensions(1440, 900);
@@ -129,7 +129,6 @@ fn main() {
             }
         }
 
-
         iterations += 1;
 
         let locals = Locals {
@@ -195,9 +194,6 @@ fn main() {
             let density = p.read_property::<sph::property::Density<f32>>();
             let accel = p.read_property::<sph::property::Acceleration<f32, U2>>();
 
-            println!("{:?}",density[2]);
-            println!("{:?}",accel[2]);
-
             for ((mut v, pos), &accel) in
                     vertex.iter_mut()
                      .zip(position.iter())
@@ -224,6 +220,6 @@ fn main() {
         window.swap_buffers().unwrap();
         device.cleanup();
 
-        println!("-----------");
+        // println!("-----------");
     }
 }
