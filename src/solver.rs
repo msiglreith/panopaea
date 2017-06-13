@@ -1,10 +1,10 @@
 
 use cgmath::BaseFloat as Real;
 use na;
-use ndarray::{Array, Array2, Ix2};
+use ndarray::{Array2};
 use std::cmp;
 
-use grid::{Grid, Grid2d, MacGrid2d};
+use grid::{Grid2d, MacGrid2d};
 use math::{self, vec2};
 
 pub struct Solver {

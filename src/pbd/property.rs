@@ -12,3 +12,12 @@ impl<T: Real, N: Dim<T>> Property for PredPosition<T, N> {
         VectorN::from_elem(T::zero())
     }
 }
+
+/// Lambda (constraints)
+pub struct Lambda<T: Real>(pub T);
+impl<T: Real> Property for Lambda<T> {
+	type Subtype = T;
+	fn new() -> Self::Subtype {
+		T::zero()
+	}
+}

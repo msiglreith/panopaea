@@ -155,7 +155,6 @@ pub fn build_sparse_matrix(
     diag: &mut Grid2d<f64>,
     plus_x: &mut Grid2d<f64>,
     plus_y: &mut Grid2d<f64>,
-    timestep: f64,
 ) {
     diag.fill(0.0);
     plus_x.fill(0.0);
@@ -207,7 +206,7 @@ pub fn conjugate_gradient<P: Preconditioner>(
     search_grid.assign(auxiliary_grid);
 
     {
-        let mut residual_error = 0.0f64;
+        let mut residual_error;
         let mut sigma = auxiliary_grid.dot_linear(residual);
 
         'iter: for i in 0..max_iterations {

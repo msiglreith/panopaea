@@ -1,5 +1,5 @@
 
-use math::{LinearView, LinearViewReal, MulOut, Real};
+use math::{LinearView, LinearViewReal, Real};
 
 pub trait Preconditioner<L> {
     fn apply(&self, dst: &mut L, src: &L);
