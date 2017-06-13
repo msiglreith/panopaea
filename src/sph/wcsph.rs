@@ -30,7 +30,7 @@ pub fn compute_density<T>(p: Processor, (kernel_size, grid): (T, &BoundedGrid<T,
     where T: Real + 'static,
           // N: Dim<T> + Dim<usize> + Dim<(usize, usize)>,
 {
-    let (mut density, position, masses) = (
+    let (density, position, masses) = (
         p.write_property::<Density<T>>(),
         p.read_property::<Position<T, U2>>(),
         p.read_property::<Mass<T>>(),
@@ -41,13 +41,13 @@ pub fn compute_density<T>(p: Processor, (kernel_size, grid): (T, &BoundedGrid<T,
     azip_indexed_par!(
         mut density (density),
         mass (masses),
-        pos (position)
-    indexed {
+        pos (position),
+    index i in {
         let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
 
         let mut d = mass * poly_6.w(T::zero());
         grid.for_each_neighbor(cell, 1, |p| {
-            // if p == i { return }
+            if p == i { return }
             d += masses[p] * poly_6.w(pos.distance(&position[p]));
         });
 
@@ -70,7 +70,7 @@ pub fn calculate_pressure<T>(p: Processor, (kernel_size, gas_constant, rest_dens
     azip_par!(
         density (densities),
         pos (positions),
-        mut accel (accels)
+        mut accel (accels),
     in {
         let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
         let pressure_i = gas_constant * (density - rest_density);
@@ -100,10 +100,10 @@ pub fn calculate_viscosity<T>(p: Processor, (kernel_size,viscosity, grid): (T, T
     let visc = kernel::Viscosity::new(kernel_size);
 
     azip_par!(
+        mut accel (accels)
         density (densities),
         pos (positions),
         vel (velocities),
-        mut accel (accels)
     in {
         let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
 

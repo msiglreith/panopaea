@@ -12,7 +12,6 @@ use sph::kernel::{self, Kernel};
 use particle::{Particles, Processor};
 use typenum::U2;
 use math::{Real, Dim, VectorN};
-use rayon::prelude::*;
 use cgmath::MetricSpace;
 use num::Zero;
 
@@ -46,7 +45,7 @@ pub fn apply_forces<T>(timestep: T, p: Processor)
 pub fn calculate_lambda<T>(rest_density: T, kernel_size: T, relaxation: T, grid: &BoundedGrid<T, U2>, p: Processor)
     where T: Real + 'static,
 {
-    let (mut lambdas, positions, masses) = (
+    let (lambdas, positions, masses) = (
         p.write_property::<Lambda<T>>(),
         p.read_property::<PredPosition<T, U2>>(),
         p.read_property::<Mass<T>>());
@@ -54,42 +53,41 @@ pub fn calculate_lambda<T>(rest_density: T, kernel_size: T, relaxation: T, grid:
     let poly_6 = kernel::Poly6::new(kernel_size);
     let spiky = kernel::Spiky::new(kernel_size);
 
-    lambdas.par_iter_mut().enumerate()
-        .zip(masses.par_iter())
-        .zip(positions.par_iter())
-        .for_each(|(((i, mut lambda), &mass), pos)| {
-            // TODO: do we need density for each?
+    azip_indexed_par!(
+        mut lambda (lambdas),
+        mass (masses),
+        pos (positions),
+    index i in {
+        // Calculate density (Eq. 2)
+        let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
+        let mut density = mass * poly_6.w(T::zero());
+        grid.for_each_neighbor(cell, 1, |p| {
+            if p == i { return }
+            density += masses[p] * poly_6.w(pos.distance(&positions[p]));
+        });
 
-            // Calculate density (Eq. 2)
-            let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
-            let mut density = mass * poly_6.w(T::zero());
-            grid.for_each_neighbor(cell, 1, |p| {
-                if p == i { return }
-                density += masses[p] * poly_6.w(pos.distance(&positions[p]));
-            });
+        // Fluid constraint (Eq. 1)
+        let constraint = density/rest_density - T::one();
+        if constraint == T::zero() { // TODO: eps
+            *lambda = T::zero();
+            return;
+        }
 
-            // Fluid constraint (Eq. 1)
-            let constraint = density/rest_density - T::one();
-            if constraint == T::zero() { // TODO: eps
-                *lambda = T::zero();
-                return;
-            }
+        let mut sum_grad = T::zero();
+        let mut grad_i = VectorN::<T, U2>::zero();
 
-            let mut sum_grad = T::zero();
-            let mut grad_i = VectorN::<T, U2>::zero();
+        // Eq. 8
+        grid.for_each_neighbor(cell, 1, |p| {
+            let diff = pos - positions[p];
+            let grad_j = diff * (-masses[p] / rest_density * spiky.grad_w(pos.distance(&positions[p])));
+            grad_i -= grad_j;
+            // TODO: sum grad_j norm
+        });
 
-            // Eq. 8
-            grid.for_each_neighbor(cell, 1, |p| {
-                let diff = *pos - positions[p];
-                let grad_j = diff * (-masses[p] / rest_density * spiky.grad_w(pos.distance(&positions[p])));
-                grad_i -= grad_j;
-                // TODO: sum grad_j norm
-            });
+        // TOOD: sum grad_i norm
 
-            // TOOD: sum grad_i norm
-
-            *lambda = -constraint / (sum_grad + relaxation); 
-         });
+        *lambda = -constraint / (sum_grad + relaxation);
+    });
 }
 
 // Alg. 1 `Simulation Loop`, 3
