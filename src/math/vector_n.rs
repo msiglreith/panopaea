@@ -1,8 +1,8 @@
 
-use cgmath::{BaseNum, Vector2, MetricSpace, VectorSpace};
+use cgmath::{ApproxEq, BaseNum, Vector2, InnerSpace, MetricSpace, VectorSpace};
 use generic_array::GenericArray;
 use generic_array::typenum::{U2, U3};
-use std::ops::{Add, AddAssign, Deref, DerefMut, Sub, SubAssign, Mul, Div, Rem};
+use std::ops::{Add, AddAssign, Deref, DerefMut, Sub, SubAssign, Mul, Div, DivAssign, Rem};
 use num::Zero;
 
 use super::{Dim, Real};
@@ -28,7 +28,7 @@ impl <S: Clone, N: Dim<S>> VectorN<S, N> {
 
 impl <S: Copy, N: Dim<S>> Copy for VectorN<S, N> where GenericArray<S, N>: Copy { }
 
-impl <S: Clone + Zero, N: Dim<S>> Zero for VectorN<S, N> {
+impl <S: Copy + Zero, N: Dim<S>> Zero for VectorN<S, N> {
     #[inline]
     fn zero() -> VectorN<S, N> {
         Self::from_elem(S::zero())
@@ -41,10 +41,13 @@ impl <S: Clone + Zero, N: Dim<S>> Zero for VectorN<S, N> {
     }
 }
 
-impl <S, N: Dim<S>> Add for VectorN<S, N> {
+impl <S: Add<Output=S> + Copy, N: Dim<S>> Add for VectorN<S, N> {
     type Output = Self;
-    fn add(self, _rhs: Self) -> Self::Output {
-        unimplemented!()
+    fn add(mut self, rhs: Self) -> Self::Output {
+        for i in 0..N::to_usize() {
+            self[i] = self[i] + rhs[i];
+        }
+        self
     }
 }
 
@@ -84,10 +87,21 @@ impl <S: Mul<Output=S> + Copy, N: Dim<S>> Mul<S> for VectorN<S, N> {
     }
 }
 
-impl <S, N: Dim<S>> Div<S> for VectorN<S, N> {
+impl <S: Div<Output=S> + Copy, N: Dim<S>> Div<S> for VectorN<S, N> {
     type Output = Self;
-    fn div(self, _rhs: S) -> Self::Output {
-        unimplemented!()
+    fn div(mut self, rhs: S) -> Self::Output {
+        for i in 0..N::to_usize() {
+            self[i] = self[i] / rhs;
+        }
+        self
+    }
+}
+
+impl <S: DivAssign + Copy, N: Dim<S>> DivAssign<S> for VectorN<S, N> {
+    fn div_assign(&mut self, rhs: S) {
+        for i in 0..N::to_usize() {
+            self[i] /= rhs;
+        }
     }
 }
 
@@ -98,12 +112,57 @@ impl <S, N: Dim<S>> Rem<S> for VectorN<S, N> {
     }
 }
 
+impl<S: Real, N: Dim<S>> ApproxEq for VectorN<S, N> {
+    type Epsilon = S::Epsilon;
+    #[inline]
+    fn default_epsilon() -> S::Epsilon {
+        S::default_epsilon()
+    }
+    #[inline]
+    fn default_max_relative() -> S::Epsilon {
+        S::default_max_relative()
+    }
+    #[inline]
+    fn default_max_ulps() -> u32 {
+        S::default_max_ulps()
+    }
+    #[inline]
+    fn relative_eq(&self, other: &Self, epsilon: S::Epsilon, max_relative: S::Epsilon) -> bool {
+        let mut result = true;
+        for i in 0..N::to_usize() {
+            result = result && S::relative_eq(&self[i], &other[i], epsilon, max_relative);
+        }
+        result
+    }
+    #[inline]
+    fn ulps_eq(&self, other: &Self, epsilon: S::Epsilon, max_ulps: u32) -> bool {
+        let mut result = true;
+        for i in 0..N::to_usize() {
+            result = result && S::ulps_eq(&self[i], &other[i], epsilon, max_ulps);
+        }
+        result
+    }
+}
+
 impl<S: BaseNum, N: Dim<S>> VectorSpace for VectorN<S, N>
-    where VectorN<S, N>: Copy {
+    where VectorN<S, N>: Copy
+{
     type Scalar = S;
 }
 
-impl<'a, S: Real, N: Dim<S>> MetricSpace for &'a VectorN<S, N> {
+impl<S: Real, N: Dim<S>> InnerSpace for VectorN<S, N>
+    where VectorN<S, N>: Copy
+{
+    fn dot(self, other: Self) -> S {
+        let mut dot = S::zero();
+        for i in 0..N::to_usize() {
+            dot += self[i] * other[i];
+        }
+        dot
+    }
+}
+
+impl<S: Real, N: Dim<S>> MetricSpace for VectorN<S, N> {
     type Metric = S;
 
     fn distance2(self, other: Self) -> Self::Metric {
@@ -111,18 +170,10 @@ impl<'a, S: Real, N: Dim<S>> MetricSpace for &'a VectorN<S, N> {
         for i in 0..N::to_usize() {
             dist += (self[i]-other[i]).powi(2)
         }
-        dist 
-
-        /*
-        self.0.iter()
-            .zip(other.0.iter())
-            .map(|(&x, &y)| (x-y).powi(2))
-            .fold(S::zero(), |a, b| a + b)
-        */
+        dist
     }
 
     fn distance(self, other: Self) -> Self::Metric {
-        // self.distance(other).sqrt()
         let mut dist = S::zero();
         for i in 0..N::to_usize() {
             dist += (self[i]-other[i]).powi(2)

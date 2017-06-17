@@ -87,6 +87,7 @@ impl<S> BoundedGrid<S, U2>
         {
             Some(unsafe { self.get_range_unchecked(cell) })
         } else {
+            println!("WARN!");
             None
         }
     }
@@ -98,7 +99,7 @@ impl<S> BoundedGrid<S, U2>
     }
 
     /// Apply function to each neighboring (including itself) cell in the grid.
-    pub fn for_each_neighbor<F>(&self, cell: (usize, usize), bound: usize, mut fnc: F)  
+    pub fn for_each_neighbor<F>(&self, cell: (usize, usize), bound: usize, mut fnc: F)
         where F: FnMut(usize)
     {
         let upper_x = cmp::min(cell.0 + bound+1, self.num_cells[0]);

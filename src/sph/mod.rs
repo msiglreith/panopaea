@@ -70,7 +70,7 @@ pub mod property {
 }
 
 // TODO: move this into Particles to allow reseting all kind of properties
-pub fn reset_acceleration<T, N>(p: Processor)
+pub fn reset_acceleration<T, N>(p: &Processor)
     where T: Real, N: Dim<T>
 {
     use self::property::Acceleration;

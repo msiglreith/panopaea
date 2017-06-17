@@ -26,7 +26,7 @@ pub fn init<T, N>(particles: &mut Particles)
 /// Compute particle density approximation based on the smoothing kernel.
 ///
 /// Ref: [MDM03] Eq. 3
-pub fn compute_density<T>(p: Processor, (kernel_size, grid): (T, &BoundedGrid<T, U2>))
+pub fn compute_density<T>(p: &Processor, (kernel_size, grid): (T, &BoundedGrid<T, U2>))
     where T: Real + 'static,
           // N: Dim<T> + Dim<usize> + Dim<(usize, usize)>,
 {
@@ -48,14 +48,14 @@ pub fn compute_density<T>(p: Processor, (kernel_size, grid): (T, &BoundedGrid<T,
         let mut d = mass * poly_6.w(T::zero());
         grid.for_each_neighbor(cell, 1, |p| {
             if p == i { return }
-            d += masses[p] * poly_6.w(pos.distance(&position[p]));
+            d += masses[p] * poly_6.w(pos.distance(position[p]));
         });
 
         *density = d;
     });
 }
 
-pub fn calculate_pressure<T>(p: Processor, (kernel_size, gas_constant, rest_density, grid): (T, T, T, &BoundedGrid<T, U2>))
+pub fn calculate_pressure<T>(p: &Processor, (kernel_size, gas_constant, rest_density, grid): (T, T, T, &BoundedGrid<T, U2>))
     where T: Real + 'static,
 {
     let (densities, positions, accels, masses) = (
@@ -81,12 +81,12 @@ pub fn calculate_pressure<T>(p: Processor, (kernel_size, gas_constant, rest_dens
             let mass_j = masses[p];
             let two = cast::<f64, T>(2.0).unwrap();
             let r = pos - positions[p];
-            *accel -= r * (mass_j * spiky.grad_w(pos.distance(&positions[p])) * (pressure_j + pressure_i) / (two * density_j * density));
+            *accel -= r * (mass_j * spiky.grad_w(pos.distance(positions[p])) * (pressure_j + pressure_i) / (two * density_j * density));
         });
     });
 }
 
-pub fn calculate_viscosity<T>(p: Processor, (kernel_size,viscosity, grid): (T, T, &BoundedGrid<T, U2>))
+pub fn calculate_viscosity<T>(p: &Processor, (kernel_size,viscosity, grid): (T, T, &BoundedGrid<T, U2>))
     where T: Real + 'static,
 {
     let (densities, positions, velocities, accels, masses) = (
@@ -110,13 +110,13 @@ pub fn calculate_viscosity<T>(p: Processor, (kernel_size,viscosity, grid): (T, T
         // TODO: skip own?
         grid.for_each_neighbor(cell, 1, |p| {
             let diff_vel = velocities[p] - vel;
-            *accel += diff_vel * (viscosity * masses[p] / (density * densities[p]) * visc.laplace_w(pos.distance(&positions[p])));
+            *accel += diff_vel * (viscosity * masses[p] / (density * densities[p]) * visc.laplace_w(pos.distance(positions[p])));
         });
 
     });
 }
 
-pub fn integrate_explicit_euler<T>(p: Processor, timestep: T)
+pub fn integrate_explicit_euler<T>(p: &Processor, timestep: T)
     where T: Real + 'static,
 {
     let (pos, vel, accel) = (

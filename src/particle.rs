@@ -70,24 +70,24 @@ impl Particles {
     }
 
     pub fn run<F>(&mut self, func: F) -> &mut Self
-        where F: FnOnce(Processor)
+        where F: FnOnce(&Processor)
     {
-        func(Processor(self));
+        func(&Processor(self));
         self
     }
 
-    pub fn run1<A>(&mut self, func: fn(Processor, A), a: A) -> &mut Self {
-        func(Processor(self), a);
+    pub fn run1<A>(&mut self, func: fn(&Processor, A), a: A) -> &mut Self {
+        func(&Processor(self), a);
         self
     }
 
-    pub fn run2<A, B>(&mut self, func: fn(Processor, A, B), a: A, b: B) -> &mut Self {
-        func(Processor(self), a, b);
+    pub fn run2<A, B>(&mut self, func: fn(&Processor, A, B), a: A, b: B) -> &mut Self {
+        func(&Processor(self), a, b);
         self
     }
 
-    pub fn run3<A, B, C>(&mut self, func: fn(Processor, A, B, C), a: A, b: B, c: C) -> &mut Self {
-        func(Processor(self), a, b, c);
+    pub fn run3<A, B, C>(&mut self, func: fn(&Processor, A, B, C), a: A, b: B, c: C) -> &mut Self {
+        func(&Processor(self), a, b, c);
         self
     }
 
@@ -134,7 +134,6 @@ impl<'a> Processor<'a> {
         unsafe { self.0.get_property_mut::<T>().as_mut_slice() }
     }
 }
-
 
 pub trait Storage : mopa::Any {
     fn len(&self) -> usize;

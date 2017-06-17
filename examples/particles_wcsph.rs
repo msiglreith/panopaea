@@ -88,7 +88,7 @@ fn main() {
     let timestep = 0.0005f32;
     let mass = 0.015f32;
     let viscosity = 3.5f32;
-    let border = 40.0;
+    let border = 60.0;
     let mut particles = Particles::new();
     sph::wcsph::init::<f32, U2>(&mut particles);
     particles.add_property::<Vertex>();
@@ -98,11 +98,11 @@ fn main() {
     {
         let mut positions = Vec::new();
         let mut masses = Vec::new();
-        for y in 0..30u8 {
-            for x in 0..30u8 {
+        for y in 0..60u8 {
+            for x in 0..60u8 {
                 let mut pos = sph::property::Position::new();
-                pos[0] = (x as f32) * smoothing * 0.6;
-                pos[1] = (y as f32) * smoothing * 0.6;
+                pos[0] = (x as f32) * smoothing * 0.65;
+                pos[1] = (y as f32) * smoothing * 0.65;
                 positions.push(pos);
                 masses.push(mass);
             }
@@ -117,7 +117,7 @@ fn main() {
     let aspect = (height as f32) / (width as f32);
 
     let view = cgmath::Matrix4::one();
-    let projection = cgmath::ortho(-1.0, 2.0, -1.0 * aspect, 2.0 * aspect, -5.0, 5.0);
+    let projection = cgmath::ortho(-0.5, 2.0, -0.5 * aspect, 2.0 * aspect, -5.0, 5.0);
 
     let mut iterations = 0;
     'main: loop {
@@ -139,53 +139,51 @@ fn main() {
         encoder.update_constant_buffer(&data.locals, &locals);
 
         // SPH simulation step
-        {
-            particles
-                // Neighbor search
-                .run(|p| {
-                    let mut position = p.write_property::<sph::property::Position<f32, U2>>();
-                    let mut velocity = p.write_property::<sph::property::Velocity<f32, U2>>();
-                    let mut vel_pos = Vec::new();
-                    for i in 0..position.len() {
-                        vel_pos.push((position[i], velocity[i]));
-                    }
-                    vel_pos.sort_by_key(|&(ref pos, _)| grid.get_key(pos));
-                    for i in 0..position.len() {
-                        position[i] = vel_pos[i].0; velocity[i] = vel_pos[i].1;
-                    }
-                    grid.construct_ranges(position);
-                })
-                // Reset acceleration
-                .run(sph::reset_acceleration::<f32, U2>)
-                // Apply external forces
-                .run(|p| {
-                    let mut accel = p.write_property::<sph::property::Acceleration<f32, U2>>();
-                    accel.par_iter_mut().for_each(|mut accel| {
-                        accel[1] += -10.0; // gravity
-                    });
-                })
-                // Compute density
-                .run1(sph::wcsph::compute_density, (smoothing, &grid))
-                // Calculate pressure force
-                .run1(sph::wcsph::calculate_pressure, (smoothing, stiffness, rest_density, &grid))
-                // Calculate viscosity force
-                .run1(sph::wcsph::calculate_viscosity, (smoothing, viscosity, &grid))
-                // Integrate position and velocity (apply force)
-                .run1(sph::wcsph::integrate_explicit_euler, timestep)
-                // Boundary checks
-                .run(|p| {
-                    let mut position = p.write_property::<sph::property::Position<f32, U2>>();
-                    let mut velocity = p.write_property::<sph::property::Velocity<f32, U2>>();
-                    position.par_iter_mut()
-                        .zip(velocity.par_iter_mut())
-                        .for_each(|(mut pos, mut vel)| {
-                           if pos[1] < 0.0 { pos[1] = 0.0; vel[1] = -vel[1] * 0.0; }
-                           if pos[1] > border * smoothing { pos[1] = border * smoothing; vel[1] = -vel[1] * 0.0; }
-                           if pos[0] < 0.0 { pos[0] = 0.0; vel[0] = -vel[0] * 0.0; }
-                           if pos[0] > border * smoothing { pos[0] = border * smoothing; vel[0] = -vel[0] * 0.0; }
-                        });
+        particles
+            // Neighbor search
+            .run(|p| {
+                let mut position = p.write_property::<sph::property::Position<f32, U2>>();
+                let mut velocity = p.write_property::<sph::property::Velocity<f32, U2>>();
+                let mut vel_pos = Vec::new();
+                for i in 0..position.len() {
+                    vel_pos.push((position[i], velocity[i]));
+                }
+                vel_pos.sort_by_key(|&(ref pos, _)| grid.get_key(pos));
+                for i in 0..position.len() {
+                    position[i] = vel_pos[i].0; velocity[i] = vel_pos[i].1;
+                }
+                grid.construct_ranges(position);
+            })
+            // Reset acceleration
+            .run(sph::reset_acceleration::<f32, U2>)
+            // Apply external forces
+            .run(|p| {
+                let mut accel = p.write_property::<sph::property::Acceleration<f32, U2>>();
+                accel.par_iter_mut().for_each(|mut accel| {
+                    accel[1] += -10.0; // gravity
                 });
-        }
+            })
+            // Compute density
+            .run1(sph::wcsph::compute_density, (smoothing, &grid))
+            // Calculate pressure force
+            .run1(sph::wcsph::calculate_pressure, (smoothing, stiffness, rest_density, &grid))
+            // Calculate viscosity force
+            .run1(sph::wcsph::calculate_viscosity, (smoothing, viscosity, &grid))
+            // Integrate position and velocity (apply force)
+            .run1(sph::wcsph::integrate_explicit_euler, timestep)
+            // Boundary checks
+            .run(|p| {
+                let mut position = p.write_property::<sph::property::Position<f32, U2>>();
+                let mut velocity = p.write_property::<sph::property::Velocity<f32, U2>>();
+                position.par_iter_mut()
+                    .zip(velocity.par_iter_mut())
+                    .for_each(|(mut pos, mut vel)| {
+                       if pos[1] < 0.0 { pos[1] = 0.0; vel[1] = -vel[1] * 0.0; }
+                       if pos[1] > border * smoothing { pos[1] = border * smoothing; vel[1] = -vel[1] * 0.0; }
+                       if pos[0] < 0.0 { pos[0] = 0.0; vel[0] = -vel[0] * 0.0; }
+                       if pos[0] > border * smoothing { pos[0] = border * smoothing; vel[0] = -vel[0] * 0.0; }
+                    });
+            });
 
         // Update particle vertex data
         particles.run(|p| {
