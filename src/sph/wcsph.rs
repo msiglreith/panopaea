@@ -70,7 +70,7 @@ pub fn calculate_pressure<T>(p: &Processor, (kernel_size, gas_constant, rest_den
     azip_par!(
         density (densities),
         pos (positions),
-        mut accel (accels),
+        ref accel (accels),
     in {
         let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
         let pressure_i = gas_constant * (density - rest_density);
@@ -100,7 +100,7 @@ pub fn calculate_viscosity<T>(p: &Processor, (kernel_size,viscosity, grid): (T, 
     let visc = kernel::Viscosity::new(kernel_size);
 
     azip_par!(
-        mut accel (accels)
+        ref accel (accels)
         density (densities),
         pos (positions),
         vel (velocities),
