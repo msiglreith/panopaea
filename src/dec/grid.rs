@@ -4,7 +4,7 @@ use ndarray::{Array, ArrayView, ArrayViewMut, Ix1, Ix2, LinalgScalar, Zip};
 use sparse::{DiagonalMatrix, SparseMatrix};
 use std::ops::Neg;
 use domain::Grid2d;
-use super::manifold::Manifold2d;
+use super::manifold::{Hodge0, Hodge1, Hodge2, Manifold2d};
 
 #[derive(Debug)]
 pub struct Staggered2d<T> {
@@ -45,13 +45,151 @@ impl<T> LinearView for Staggered2d<T> {
     }
 }
 
+impl<T> Hodge0<T> for Grid2d
+where T: LinalgScalar + Neg<Output = T> + Send + Sync
+{
+    type Simplex0 = Array<T, Ix2>;
+    fn apply(&self, dual: &mut Self::Simplex0, primal: &Self::Simplex0) {
+        let two = T::one() + T::one();
+        let four = two + two;
+        let (h, w) = self.dim();
+
+        // corners
+        dual[(0, 0)]     = primal[(0, 0)] / four;
+        dual[(0, w-1)]   = primal[(0, w-1)] / four;
+        dual[(h-1, 0)]   = primal[(h-1, 0)] / four;
+        dual[(h-1, w-1)] = primal[(h-1, w-1)] / four;
+
+        // sides
+        Zip::from(dual.slice_mut(s![..1, 1..-1]))
+            .and(primal.slice(s![..1, 1..-1]))
+            .apply(|dual, &primal| {
+                *dual = primal / two;
+            });
+
+        Zip::from(dual.slice_mut(s![-1.., 1..-1]))
+            .and(primal.slice(s![-1.., 1..-1]))
+            .apply(|dual, &primal| {
+                *dual = primal / two;
+            });
+
+        Zip::from(dual.slice_mut(s![1..-1, ..1]))
+            .and(primal.slice(s![1..-1, ..1]))
+            .apply(|dual, &primal| {
+                *dual = primal / two;
+            });
+
+        Zip::from(dual.slice_mut(s![1..-1, -1..]))
+            .and(primal.slice(s![1..-1, -1..]))
+            .apply(|dual, &primal| {
+                *dual = primal / two;
+            });
+
+        // inner
+        Zip::from(dual.slice_mut(s![1..-1, 1..-1]))
+            .and(primal.slice(s![1..-1, 1..-1]))
+            .apply(|dual, &primal| {
+                *dual = primal;
+            });
+    }
+    fn apply_inv(&self, primal: &mut Self::Simplex0, dual: &Self::Simplex0) {
+        let two = T::one() + T::one();
+        let four = two + two;
+        let (h, w) = self.dim();
+
+        // corners
+        primal[(0, 0)]     = dual[(0, 0)] * four;
+        primal[(0, w-1)]   = dual[(0, w-1)] * four;
+        primal[(h-1, 0)]   = dual[(h-1, 0)] * four;
+        primal[(h-1, w-1)] = dual[(h-1, w-1)] * four;
+
+        // sides
+        Zip::from(primal.slice_mut(s![..1, 1..-1]))
+            .and(dual.slice(s![..1, 1..-1]))
+            .apply(|primal, &dual| {
+                *primal = dual * two;
+            });
+
+        Zip::from(primal.slice_mut(s![-1.., 1..-1]))
+            .and(dual.slice(s![-1.., 1..-1]))
+            .apply(|primal, &dual| {
+                *primal = dual * two;
+            });
+
+        Zip::from(primal.slice_mut(s![1..-1, ..1]))
+            .and(dual.slice(s![1..-1, ..1]))
+            .apply(|primal, &dual| {
+                *primal = dual * two;
+            });
+
+        Zip::from(primal.slice_mut(s![1..-1, -1..]))
+            .and(dual.slice(s![1..-1, -1..]))
+            .apply(|primal, &dual| {
+                *primal = dual * two;
+            });
+
+        // inner
+        Zip::from(primal.slice_mut(s![1..-1, 1..-1]))
+            .and(dual.slice(s![1..-1, 1..-1]))
+            .apply(|primal, &dual| {
+                *primal = dual;
+            });
+    }
+}
+
+impl<T> Hodge1<T> for Grid2d
+where T: LinalgScalar + Neg<Output = T> + Send + Sync
+{
+    type Simplex1 = Staggered2d<T>;
+    fn apply(&self, dual: &mut Self::Simplex1, primal: &Self::Simplex1) {
+        let primal = primal.split();
+        let mut dual = dual.split_mut();
+
+        Zip::from(&mut dual.0)
+            .and(&primal.0)
+            .apply(|dual, &primal| {
+                *dual = primal;
+            });
+
+        Zip::from(&mut dual.1)
+            .and(&primal.1)
+            .apply(|dual, &primal| {
+                *dual = -primal;
+            });
+    }
+    fn apply_inv(&self, primal: &mut Self::Simplex1, dual: &Self::Simplex1) {
+        let dual = dual.split();
+        let mut primal = primal.split_mut();
+
+        Zip::from(&mut primal.0)
+            .and(&dual.0)
+            .apply(|primal, &dual| {
+                *primal = -dual;
+            });
+
+        Zip::from(&mut primal.1)
+            .and(&dual.1)
+            .apply(|primal, &dual| {
+                *primal = dual;
+            });
+    }
+}
+
+impl<T> Hodge2<T> for Grid2d
+where T: LinalgScalar
+{
+    type Simplex2 = Array<T, Ix2>;
+    fn apply(&self, dual: &mut Self::Simplex2, primal: &Self::Simplex2) {
+        dual.assign(primal);
+    }
+    fn apply_inv(&self, primal: &mut Self::Simplex2, dual: &Self::Simplex2) {
+        primal.assign(dual);
+    }
+}
+
 impl<T> Manifold2d<T> for Grid2d
     where T: LinalgScalar + Neg<Output = T> + Send + Sync
 {
-    type Simplex0 = Array<T, Ix2>;
-    type Simplex1 = Staggered2d<T>;
-    type Simplex2 = Array<T, Ix2>;
-
     fn num_elem_0(&self) -> usize {
         (self.dim().0 + 1) * (self.dim().1 + 1)
     }
@@ -128,136 +266,6 @@ impl<T> Manifold2d<T> for Grid2d
 
     fn derivative_1_dual(&self, faces: &mut Self::Simplex0, edges: &Self::Simplex1) {
         unimplemented!()
-    }
-
-    fn hodge_0_primal(&self, dual: &mut Self::Simplex0, primal: &Self::Simplex0) {
-        let two = T::one() + T::one();
-        let four = two + two;
-        let (h, w) = self.dim();
-
-        // corners
-        dual[(0, 0)]     = primal[(0, 0)] / four;
-        dual[(0, w-1)]   = primal[(0, w-1)] / four;
-        dual[(h-1, 0)]   = primal[(h-1, 0)] / four;
-        dual[(h-1, w-1)] = primal[(h-1, w-1)] / four;
-
-        // sides
-        Zip::from(dual.slice_mut(s![..1, 1..-1]))
-            .and(primal.slice(s![..1, 1..-1]))
-            .apply(|dual, &primal| {
-                *dual = primal / two;
-            });
-
-        Zip::from(dual.slice_mut(s![-1.., 1..-1]))
-            .and(primal.slice(s![-1.., 1..-1]))
-            .apply(|dual, &primal| {
-                *dual = primal / two;
-            });
-
-        Zip::from(dual.slice_mut(s![1..-1, ..1]))
-            .and(primal.slice(s![1..-1, ..1]))
-            .apply(|dual, &primal| {
-                *dual = primal / two;
-            });
-
-        Zip::from(dual.slice_mut(s![1..-1, -1..]))
-            .and(primal.slice(s![1..-1, -1..]))
-            .apply(|dual, &primal| {
-                *dual = primal / two;
-            });
-
-        // inner
-        Zip::from(dual.slice_mut(s![1..-1, 1..-1]))
-            .and(primal.slice(s![1..-1, 1..-1]))
-            .apply(|dual, &primal| {
-                *dual = primal;
-            });
-    }
-
-    fn hodge_2_dual(&self, primal: &mut Self::Simplex0, dual: &Self::Simplex0) {
-        let two = T::one() + T::one();
-        let four = two + two;
-        let (h, w) = self.dim();
-
-        // corners
-        primal[(0, 0)]     = dual[(0, 0)] * four;
-        primal[(0, w-1)]   = dual[(0, w-1)] * four;
-        primal[(h-1, 0)]   = dual[(h-1, 0)] * four;
-        primal[(h-1, w-1)] = dual[(h-1, w-1)] * four;
-
-        // sides
-        Zip::from(primal.slice_mut(s![..1, 1..-1]))
-            .and(dual.slice(s![..1, 1..-1]))
-            .apply(|primal, &dual| {
-                *primal = dual * two;
-            });
-
-        Zip::from(primal.slice_mut(s![-1.., 1..-1]))
-            .and(dual.slice(s![-1.., 1..-1]))
-            .apply(|primal, &dual| {
-                *primal = dual * two;
-            });
-
-        Zip::from(primal.slice_mut(s![1..-1, ..1]))
-            .and(dual.slice(s![1..-1, ..1]))
-            .apply(|primal, &dual| {
-                *primal = dual * two;
-            });
-
-        Zip::from(primal.slice_mut(s![1..-1, -1..]))
-            .and(dual.slice(s![1..-1, -1..]))
-            .apply(|primal, &dual| {
-                *primal = dual * two;
-            });
-
-        // inner
-        Zip::from(primal.slice_mut(s![1..-1, 1..-1]))
-            .and(dual.slice(s![1..-1, 1..-1]))
-            .apply(|primal, &dual| {
-                *primal = dual;
-            });
-    }
-
-    fn hodge_1_primal(&self, dual: &mut Self::Simplex1, primal: &Self::Simplex1) {
-        let primal = primal.split();
-        let mut dual = dual.split_mut();
-
-        Zip::from(&mut dual.0)
-            .and(&primal.0)
-            .apply(|dual, &primal| {
-                *dual = primal;
-            });
-
-        Zip::from(&mut dual.1)
-            .and(&primal.1)
-            .apply(|dual, &primal| {
-                *dual = -primal;
-            });
-    }
-
-    fn hodge_1_dual(&self, primal: &mut Self::Simplex1, dual: &Self::Simplex1) {
-        let dual = dual.split();
-        let mut primal = primal.split_mut();
-
-        Zip::from(&mut primal.0)
-            .and(&dual.0)
-            .apply(|primal, &dual| {
-                *primal = -dual;
-            });
-
-        Zip::from(&mut primal.1)
-            .and(&dual.1)
-            .apply(|primal, &dual| {
-                *primal = dual;
-            });
-    }
-
-    fn hodge_2_primal(&self, dual: &mut Self::Simplex2, primal: &Self::Simplex2) {
-        dual.assign(primal);
-    }
-
-    fn hodge_0_dual(&self, primal: &mut Self::Simplex2, dual: &Self::Simplex2) {
-        primal.assign(dual);
     }
 
     fn derivative_0_primal_matrix(&self) -> SparseMatrix<T> {

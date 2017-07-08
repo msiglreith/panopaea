@@ -3,16 +3,16 @@ use math::LinearView;
 use sparse::{DiagonalMatrix, SparseMatrix};
 use std::marker::PhantomData;
 
-pub trait Manifold2d<T> {
+pub trait Manifold2d<T> : Hodge0<T> + Hodge1<T> + Hodge2<T> {
     /// Storage type for 0-simplices (vertex).
     /// A differential primal 0-form is stored for each 0-simplex.
-    type Simplex0: LinearView<Elem = T>;
+    // type Simplex0: LinearView<Elem = T>;
     /// Storage type for 1-simplices (edge).
     /// A differential primal 1-form is stored for each 1-simplex.
-    type Simplex1: LinearView<Elem = T>;
+    // type Simplex1: LinearView<Elem = T>;
     /// Storage type for 2-simplices (face).
     /// A differential primal 2-form is stored for each 2-simplex.
-    type Simplex2: LinearView<Elem = T>;
+    // type Simplex2: LinearView<Elem = T>;
 
     ///
     fn num_elem_0(&self) -> usize;
@@ -40,14 +40,26 @@ pub trait Manifold2d<T> {
     fn derivative_1_primal(&self, &mut Self::Simplex2, &Self::Simplex1);
     fn derivative_1_dual(&self, &mut Self::Simplex0, &Self::Simplex1);
 
-    fn hodge_0_primal(&self, dual: &mut Self::Simplex0, primal: &Self::Simplex0);
-    fn hodge_2_dual(&self, primal: &mut Self::Simplex0, dual: &Self::Simplex0);
+    fn hodge_0_primal(&self, dual: &mut Self::Simplex0, primal: &Self::Simplex0) {
+        Hodge0::apply(self, dual, primal)
+    }
+    fn hodge_2_dual(&self, primal: &mut Self::Simplex0, dual: &Self::Simplex0) {
+        Hodge0::apply_inv(self, primal, dual)
+    }
 
-    fn hodge_1_primal(&self, dual: &mut Self::Simplex1, primal: &Self::Simplex1);
-    fn hodge_1_dual(&self, primal: &mut Self::Simplex1, dual: &Self::Simplex1);
+    fn hodge_1_primal(&self, dual: &mut Self::Simplex1, primal: &Self::Simplex1) {
+        Hodge1::apply(self, dual, primal)
+    }
+    fn hodge_1_dual(&self, primal: &mut Self::Simplex1, dual: &Self::Simplex1) {
+        Hodge1::apply_inv(self, primal, dual)
+    }
 
-    fn hodge_2_primal(&self, dual: &mut Self::Simplex2, primal: &Self::Simplex2);
-    fn hodge_0_dual(&self, primal: &mut Self::Simplex2, dual: &Self::Simplex2);
+    fn hodge_2_primal(&self, dual: &mut Self::Simplex2, primal: &Self::Simplex2) {
+        Hodge2::apply(self, dual, primal)
+    }
+    fn hodge_0_dual(&self, primal: &mut Self::Simplex2, dual: &Self::Simplex2) {
+        Hodge2::apply_inv(self, primal, dual)
+    }
 
     //
     fn derivative_0_primal_matrix(&self) -> SparseMatrix<T>;
@@ -63,6 +75,30 @@ pub trait Manifold2d<T> {
     fn hodge_0_dual_matrix(&self) -> DiagonalMatrix<T>;
     fn hodge_1_dual_matrix(&self) -> DiagonalMatrix<T>;
     fn hodge_2_dual_matrix(&self) -> DiagonalMatrix<T>;
+}
+
+pub trait Hodge0<T> {
+    /// Storage type for 0-simplices (vertex).
+    /// A differential primal 0-form is stored for each 0-simplex.
+    type Simplex0;
+    fn apply(&self, dual: &mut Self::Simplex0, primal: &Self::Simplex0);
+    fn apply_inv(&self, primal: &mut Self::Simplex0, dual: &Self::Simplex0);
+}
+
+pub trait Hodge1<T> {
+    /// Storage type for 1-simplices (edge).
+    /// A differential primal 1-form is stored for each 1-simplex.
+    type Simplex1;
+    fn apply(&self, dual: &mut Self::Simplex1, primal: &Self::Simplex1);
+    fn apply_inv(&self, primal: &mut Self::Simplex1, dual: &Self::Simplex1);
+}
+
+pub trait Hodge2<T> {
+    /// Storage type for 2-simplices (face).
+    /// A differential primal 2-form is stored for each 2-simplex.
+    type Simplex2;
+    fn apply(&self, dual: &mut Self::Simplex2, primal: &Self::Simplex2);
+    fn apply_inv(&self, primal: &mut Self::Simplex2, dual: &Self::Simplex2);
 }
 
 pub struct Laplacian<'a, T, M: Manifold2d<T> + 'a> {
