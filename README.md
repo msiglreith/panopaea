@@ -1,2 +1,3 @@
-<img align="left" width="128px" src="info/panopaea_logo.png" />
+<img align="left" width="64px" src="info/panopaea_logo.png"/>
+
 # Panopaea
