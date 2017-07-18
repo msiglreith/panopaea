@@ -20,7 +20,7 @@ impl<A: LinalgScalar> DiagonalMatrix<A> {
 impl<A: LinalgScalar + Send + Sync> DiagonalMatrix<A> {
     pub fn mul_vec(&self, mut b: ArrayViewMut<A, Ix1>, x: ArrayView<A, Ix1>) {
         let a: ArrayView<A, Ix1> = self.data.as_slice().into();
-        azip_par!(mut b, x, a in { *b = x * a });
+        par_azip!(mut b, x, a in { *b = x * a });
     }
 }
 

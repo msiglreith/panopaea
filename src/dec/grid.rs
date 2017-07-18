@@ -220,13 +220,13 @@ impl<T> Manifold2d<T> for Grid2d
     fn derivative_0_primal(&self, edges: &mut Self::Simplex1, vertices: &Self::Simplex0) {
         let mut edges = edges.split_mut();
 
-        azip_par!(
+        par_azip!(
             mut edge (&mut edges.0),
             v0 (vertices.slice(s![.., ..-1])),
             v1 (vertices.slice(s![.., 1..]))
          in { *edge = v1 - v0; });
 
-        azip_par!(
+        par_azip!(
             mut edge (&mut edges.1),
             v0 (vertices.slice(s![..-1, ..])),
             v1 (vertices.slice(s![1.., ..]))
@@ -237,14 +237,14 @@ impl<T> Manifold2d<T> for Grid2d
         let mut edges = edges.split_mut();
 
         // vertical
-        azip_par!(
+        par_azip!(
             mut edge (edges.0.slice_mut(s![1..-1, ..])),
             f0 (faces.slice(s![..-1, ..])),
             f1 (faces.slice(s![1.., ..]))
          in { *edge = -(f1 - f0); });
 
         // horizontal
-        azip_par!(
+        par_azip!(
             mut edge (edges.1.slice_mut(s![.., 1..-1])),
             f0 (faces.slice(s![.., ..-1])),
             f1 (faces.slice(s![.., 1..]))
@@ -255,7 +255,7 @@ impl<T> Manifold2d<T> for Grid2d
     fn derivative_1_primal(&self, faces: &mut Self::Simplex2, edges: &Self::Simplex1) {
         let edges = edges.split();
 
-        azip_par!(
+        par_azip!(
             mut face (faces),
             top    (edges.0.slice(s![..-1,   ..])),
             bottom (edges.0.slice(s![ 1..,   ..])),

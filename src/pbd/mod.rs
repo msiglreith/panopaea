@@ -37,7 +37,7 @@ pub fn apply_forces<T>(p: &Processor, timestep: T)
         p.write_property::<Velocity<T, U2>>(),
         p.read_property::<Acceleration<T, U2>>());
 
-    azip_par!(
+    par_azip!(
         mut vel (velocities),
         accel (accelerations)
      in { *vel += accel * timestep; });
@@ -56,7 +56,7 @@ pub fn predict_position<T>(p: &Processor, timestep: T)
         p.read_property::<Position<T, U2>>(),
         p.read_property::<Velocity<T, U2>>());
 
-    azip_par!(
+    par_azip!(
         mut pred_pos (pred_positions),
         pos (positions),
         vel (velocities)
@@ -77,11 +77,12 @@ pub fn calculate_lambda<T>(p: &Processor, (rest_density, kernel_size, relaxation
     let poly_6 = kernel::Poly6::new(kernel_size);
     let spiky = kernel::Spiky::new(kernel_size);
 
-    azip_indexed_par!(
+    par_azip!(
+        index i,
         mut lambda (lambdas),
         mass (masses),
         pos (positions),
-    index i in {
+    in {
         // Calculate density (Eq. 2)
         let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
         let mut density = mass * poly_6.w(T::zero());
@@ -127,11 +128,12 @@ pub fn calculate_pos_delta<T>(p: &Processor, (rest_density, kernel_size, grid): 
 
     let spiky = kernel::Spiky::new(kernel_size);
 
-    azip_indexed_par!(
+    par_azip!(
+        index i,
         lambda_i (lambdas),
         pos (positions),
         mut delta_pos (delta_pos)
-    index i in {
+    in {
         // Calculate delta_p
         let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
         *delta_pos = VectorN::<T, U2>::zero();
@@ -151,7 +153,7 @@ pub fn apply_delta<T>(p: &Processor)
         p.write_property::<PredPosition<T, U2>>(),
         p.read_property::<DeltaPos<T, U2>>());
 
-    azip_par!(
+    par_azip!(
         mut pos (pos),
         delta (delta)
     in { *pos += delta; });
@@ -166,7 +168,7 @@ pub fn update_velocity<T>(p: &Processor, timestep: T)
         p.read_property::<Position<T, U2>>(),
         p.read_property::<PredPosition<T, U2>>());
 
-    azip_par!(
+    par_azip!(
         mut vel (velocities),
         pos (positions),
         pred_pos (pred_positions)
@@ -182,7 +184,7 @@ pub fn update_position<T>(p: &Processor)
         p.write_property::<Position<T, U2>>(),
         p.read_property::<PredPosition<T, U2>>());
 
-    azip_par!(
+    par_azip!(
         mut pos (positions),
         pred_pos (pred_positions)
     in { *pos = pred_pos; });

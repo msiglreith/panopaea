@@ -38,11 +38,12 @@ pub fn compute_density<T>(p: &Processor, (kernel_size, grid): (T, &BoundedGrid<T
 
     let poly_6 = kernel::Poly6::new(kernel_size);
 
-    azip_indexed_par!(
+    par_azip!(
+        index i,
         mut density (density),
         mass (masses),
         pos (position),
-    index i in {
+    in {
         let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
 
         let mut d = mass * poly_6.w(T::zero());
@@ -67,7 +68,7 @@ pub fn calculate_pressure<T>(p: &Processor, (kernel_size, gas_constant, rest_den
 
     let spiky = kernel::Poly6::new(kernel_size);
 
-    azip_par!(
+    par_azip!(
         density (densities),
         pos (positions),
         ref accel (accels),
@@ -99,7 +100,7 @@ pub fn calculate_viscosity<T>(p: &Processor, (kernel_size,viscosity, grid): (T, 
 
     let visc = kernel::Viscosity::new(kernel_size);
 
-    azip_par!(
+    par_azip!(
         ref accel (accels)
         density (densities),
         pos (positions),
@@ -125,7 +126,7 @@ pub fn integrate_explicit_euler<T>(p: &Processor, timestep: T)
         p.read_property::<Acceleration<T, U2>>(),
     );
 
-    azip_par!(mut pos (pos), mut vel (vel), accel (accel) in {
+    par_azip!(mut pos (pos), mut vel (vel), accel (accel) in {
         *vel += accel * timestep;
         *pos += *vel * timestep;
     });
