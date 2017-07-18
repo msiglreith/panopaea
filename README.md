@@ -1,3 +1,8 @@
-<img align="left" width="48px" src="info/panopaea_logo.png"/>
+<h1 align="center">
+    <img src="info/panopaea_logo.png", width="128">
+    <br>
+    Panopaea
+    <br>
+</h1>
 
-# Panopaea
+<h3 align="center">A fluid solving framework for Computer Graphics/VFX in Rust.</h3>
