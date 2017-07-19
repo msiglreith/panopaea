@@ -1,13 +1,14 @@
 
 //! Particle system
 
+use scene;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::any::{TypeId};
 use mopa;
 
-pub trait Property: 'static {
-    type Subtype: Clone;
+pub trait Property: Send + Sync + 'static {
+    type Subtype: Clone + Send + Sync;
     fn new() -> Self::Subtype;
 }
 
@@ -135,7 +136,7 @@ impl<'a> Processor<'a> {
     }
 }
 
-pub trait Storage : mopa::Any {
+pub trait Storage : mopa::Any + Send + Sync {
     fn len(&self) -> usize;
     fn reserve(&mut self, additional: usize);
     fn fill(&mut self, additional: usize);
@@ -145,7 +146,10 @@ mopafy!(Storage);
 
 type VecStorage<T: Property> = (Vec<T::Subtype>, PhantomData<T>);
 
-impl<T: Property> Storage for VecStorage<T> {
+impl<T> Storage for VecStorage<T>
+where
+    T: Property
+{
     fn len(&self) -> usize {
         self.0.len()
     }
@@ -157,4 +161,8 @@ impl<T: Property> Storage for VecStorage<T> {
     fn fill(&mut self, additional: usize) {
         self.0.extend_from_slice(&vec![T::new(); additional])
     }
+}
+
+impl scene::Component for Particles {
+    type Storage = scene::Storage<Particles>;
 }
