@@ -9,7 +9,7 @@ extern crate generic_array;
 extern crate rayon;
 extern crate typenum;
 extern crate cgmath;
-
+extern crate specs;
 extern crate sprs;
 
 pub mod cg;
@@ -20,10 +20,12 @@ pub mod math;
 pub mod particle;
 pub mod pbd;
 pub mod pcg;
+pub mod scene;
 pub mod solver;
 pub mod sparse;
 pub mod sph;
 pub mod wavelet;
 
 pub use grid::*;
+pub use scene::*;
 pub use solver::*;
