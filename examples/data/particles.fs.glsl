@@ -4,11 +4,11 @@
 in Vertex {
     vec3 color;
     vec2 uv;
-} g_Vertex;
+} ps_vertex;
 
 out vec4 Target0;
 
 void main() {
-    float alpha = step(0, 1-dot(g_Vertex.uv, g_Vertex.uv));
-    Target0 = vec4(g_Vertex.color, alpha);
+    float alpha = step(0.0, 1.0-dot(ps_vertex.uv, ps_vertex.uv));
+    Target0 = vec4(ps_vertex.color, alpha);
 }

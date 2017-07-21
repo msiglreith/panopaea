@@ -116,7 +116,7 @@ fn main() {
     let aspect = (height as f32) / (width as f32);
 
     let view = cgmath::Matrix4::one();
-    let projection = cgmath::ortho(-100.0, 100.0, -100.0 * aspect, 100.0 * aspect, -5.0, 5.0);
+    let projection = cgmath::ortho(-20.0, 100.0, -20.0 * aspect, 100.0 * aspect, -5.0, 5.0);
 
     let mut step = false;
     'main: loop {

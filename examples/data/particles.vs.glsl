@@ -12,9 +12,9 @@ uniform Locals {
 
 out Vertex {
     vec3 color;
-} v_Vertex;
+} gs_vertex;
 
 void main() {
     gl_Position = u_View * vec4(a_Pos, 0.0, 1.0);
-    v_Vertex.color = a_Color;
+    gs_vertex.color = a_Color;
 }
