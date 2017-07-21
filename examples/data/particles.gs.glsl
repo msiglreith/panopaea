@@ -12,32 +12,32 @@ uniform Locals {
 
 in Vertex {
     vec3 color;
-} v_Vertex[];
+} gs_vertex[];
 
 out Vertex {
     vec3 color;
     vec2 uv;
-} g_Vertex;
+} ps_vertex;
 
 void main()
 {
     gl_Position = u_Proj * (gl_in[0].gl_Position + vec4(-u_ParticleSize, -u_ParticleSize, 0, 0));
-    g_Vertex.color = v_Vertex[0].color;
-    g_Vertex.uv = vec2(-1, -1);
+    ps_vertex.color = gs_vertex[0].color;
+    ps_vertex.uv = vec2(-1, -1);
     EmitVertex();
 
     gl_Position = u_Proj * (gl_in[0].gl_Position + vec4(u_ParticleSize, -u_ParticleSize, 0, 0));
-    g_Vertex.color = v_Vertex[0].color;
-    g_Vertex.uv = vec2(1, -1);
+    ps_vertex.color = gs_vertex[0].color;
+    ps_vertex.uv = vec2(1, -1);
     EmitVertex();
 
     gl_Position = u_Proj * (gl_in[0].gl_Position + vec4(-u_ParticleSize, u_ParticleSize, 0, 0));
-    g_Vertex.color = v_Vertex[0].color;
-    g_Vertex.uv = vec2(-1, 1);
+    ps_vertex.color = gs_vertex[0].color;
+    ps_vertex.uv = vec2(-1, 1);
     EmitVertex();
 
     gl_Position = u_Proj * (gl_in[0].gl_Position + vec4(u_ParticleSize, u_ParticleSize, 0, 0));
-    g_Vertex.color = v_Vertex[0].color;
-    g_Vertex.uv = vec2(1, 1);
+    ps_vertex.color = gs_vertex[0].color;
+    ps_vertex.uv = vec2(1, 1);
     EmitVertex();
 }
