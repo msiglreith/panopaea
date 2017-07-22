@@ -5,6 +5,7 @@ use ndarray::{Array, ArrayBase, ArrayView, ArrayViewMut, Dimension, Ix1};
 use generic_array::ArrayLength;
 
 pub mod vector_n;
+pub mod wavelet;
 
 pub use self::vector_n::VectorN;
 

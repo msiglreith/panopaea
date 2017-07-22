@@ -24,7 +24,6 @@ pub mod scene;
 pub mod solver;
 pub mod sparse;
 pub mod sph;
-pub mod wavelet;
 
 pub use grid::*;
 pub use scene::*;
