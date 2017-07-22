@@ -17,6 +17,7 @@ pub mod dec;
 pub mod domain;
 pub mod grid;
 pub mod math;
+pub mod ocean;
 pub mod particle;
 pub mod pbd;
 pub mod pcg;
