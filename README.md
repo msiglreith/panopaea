@@ -11,3 +11,5 @@
       <img src="https://img.shields.io/travis/msiglreith/panopaea/master.svg?style=flat-square" alt="Travis Build Status">
     </a>
 </p>
+
+*panopaea-bors* powered by [`bors-ng`](https://github.com/bors-ng/bors-ng).
