@@ -17,6 +17,7 @@ pub mod dec;
 pub mod domain;
 pub mod grid;
 pub mod math;
+pub mod ocean;
 pub mod particle;
 pub mod pbd;
 pub mod pcg;
@@ -24,7 +25,6 @@ pub mod scene;
 pub mod solver;
 pub mod sparse;
 pub mod sph;
-pub mod wavelet;
 
 pub use grid::*;
 pub use scene::*;
