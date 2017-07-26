@@ -1,29 +1,7 @@
-[package]
-name = "panopaea"
-version = "0.1.0"
-authors = ["msiglreith <msiglreith@users.noreply.github.com>"]
-
-[dependencies]
-alga = "0.5"
-nalgebra = "0.11"
-num = "0.1.35"
-stopwatch = "0.0.7"
-ndarray = "0.10"
-ndarray-parallel = "0.5"
-generic-array = "0.6"
-sprs = { git = "https://github.com/vbarrielle/sprs.git", version = "0.6" }
-mopa = "0.2.2"
-rayon = "0.8"
-typenum = "1.7.0"
-cgmath = "0.12"
-specs = "0.9.2"
-
-[dev-dependencies]
-panopaea-util = { path = "util" }
-image = "0.10.3"
-gfx = "0.14"
-gfx_window_glutin = "0.14"
-glutin = "0.7"
 
 [workspace]
-members = ["util"]
+members = [
+    "panopaea",
+    "panopaea_python",
+    "panopaea_utils",
+]

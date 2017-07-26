@@ -1,11 +1,12 @@
 [package]
-name = "panopaea-util"
+name = "panopaea-python"
 version = "0.1.0"
 authors = ["msiglreith <msiglreith@users.noreply.github.com>"]
 workspace = ".."
 
 [lib]
-name = "panopaea_util"
+name = "panopaea_python"
 
 [dependencies]
-image = "0.10.3"
+cpython = "0.1.0"
+numpy = "0.2.1"
