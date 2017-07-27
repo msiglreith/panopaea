@@ -1,0 +1,13 @@
+[package]
+name = "panopaea-examples"
+version = "0.1.0"
+authors = ["msiglreith <msiglreith@users.noreply.github.com>"]
+workspace = ".."
+
+[dependencies]
+panopaea = { path = "../panopaea" }
+panopaea_utils = { path = "../panopaea_utils" }
+
+[[example]]
+name = "ocean"
+path = "ocean.rs"

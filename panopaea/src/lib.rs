@@ -2,10 +2,14 @@
 extern crate alga;
 extern crate nalgebra as na;
 extern crate num;
-#[macro_use] extern crate ndarray;
-#[macro_use] extern crate ndarray_parallel;
+#[macro_use]
+extern crate ndarray;
+#[macro_use]
+extern crate ndarray_parallel;
 extern crate generic_array;
-#[macro_use] extern crate mopa;
+#[macro_use]
+extern crate mopa;
+extern crate rand;
 extern crate rayon;
 extern crate typenum;
 extern crate cgmath;

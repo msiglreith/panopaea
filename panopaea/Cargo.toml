@@ -17,6 +17,7 @@ rayon = "0.8"
 typenum = "1.7.0"
 cgmath = "0.12"
 specs = "0.9.2"
+rand = "0.3.15"
 
 [dev-dependencies]
 panopaea_utils = { path = "../panopaea_utils" }

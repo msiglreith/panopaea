@@ -2,8 +2,11 @@
 use cgmath::BaseFloat;
 use na;
 use ndarray::{Array, ArrayBase, ArrayView, ArrayViewMut, Dimension, Ix1};
+use num;
 use generic_array::ArrayLength;
+use rand;
 
+pub mod integration;
 pub mod interp;
 pub mod vector_n;
 pub mod wavelet;
@@ -51,8 +54,13 @@ impl<A, D: Dimension> LinearView for Array<A, D> {
 pub trait Dim<S> : ArrayLength<S> + Clone + 'static { }
 impl<T, S> Dim<S> for T where T: ArrayLength<S> + Clone + 'static { }
 
-pub trait Real: BaseFloat + 'static + Send + Sync { }
-impl<T> Real for T where T: BaseFloat + 'static + Send + Sync { }
+pub trait Real: BaseFloat + rand::Rand + 'static + Send + Sync {
+    fn new<U: num::NumCast>(other: U) -> Self {
+        num::NumCast::from(other).unwrap()
+    }
+}
+
+impl<T> Real for T where T: BaseFloat + rand::Rand + 'static + Send + Sync { }
 
 pub trait MulOut {
     type RHS;
