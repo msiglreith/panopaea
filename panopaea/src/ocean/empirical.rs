@@ -1,6 +1,6 @@
 
 use cgmath::{self, InnerSpace};
-use math::Real;
+use math::{integration, Real};
 use ndarray::{Array2};
 use rand;
 use rand::distributions::normal;
@@ -78,6 +78,7 @@ pub struct Parameters<T> {
     pub gravity: T, // [m/s^2]
     pub wind_speed: T, // [m/s]
     pub fetch: T,
+    pub swell: T,
 }
 
 pub fn build_height_spectrum<S, T>(
@@ -91,7 +92,7 @@ where
 {
     let pi = T::new(PI);
     let mut height_spectrum = Array2::from_elem((resolution+1, resolution+1), (T::zero(), T::zero()));
-    par_azip!(index (i, j), mut height_spectrum in {
+    par_azip!(index (j, i), mut height_spectrum in {
         let x: T = T::new(2 * i as isize - resolution as isize);
         let y: T = T::new(2 * j as isize - resolution as isize);
 
@@ -158,12 +159,29 @@ where
     (dispersion, grad_dispersion)
 }
 
+// [Horvath15] Eq. 44
+fn directional_elongation<T: Real>(parameters: &Parameters<T>, omega: T, theta: T) -> T {
+    let shaping = {
+        let omega_peak = dispersion_peak(parameters.gravity, parameters.wind_speed, parameters.fetch);
+        T::new(16.0) * (omega_peak / omega).tanh() * parameters.swell.powi(2)
+    };
+
+    (theta/T::new(2.0)).cos().abs().powf(T::new(2.0)*shaping)
+}
+
 fn directional_spreading<F, T>(parameters: &Parameters<T>, omega: T, theta: T, directional_base: F) -> T
 where
     F: Fn(&Parameters<T>, T, T) -> T,
     T: Real,
 {
-    unimplemented!()
+    let pi = T::new(PI);
+    let normalization =
+        integration::trapezoidal_quadrature(
+            (-pi, pi),
+            128,
+            |theta| directional_base(parameters, omega, theta) * directional_elongation(parameters, omega, theta));
+
+    directional_base(parameters, omega, theta) * directional_elongation(parameters, omega, theta) / normalization
 }
 
 // Donelan-Banner Directional Spreading [Horvath15] Eq. 38

@@ -1,6 +1,7 @@
 
 [workspace]
 members = [
+    "examples",
     "panopaea",
     "panopaea_python",
     "panopaea_utils",

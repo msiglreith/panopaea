@@ -6,6 +6,7 @@ use num;
 use generic_array::ArrayLength;
 use rand;
 
+pub mod integration;
 pub mod interp;
 pub mod vector_n;
 pub mod wavelet;
