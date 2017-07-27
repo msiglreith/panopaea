@@ -2,11 +2,15 @@
 use cgmath::{self, InnerSpace};
 use math::Real;
 use ndarray::{Array2};
-use num::cast;
 use rand;
 use rand::distributions::normal;
 
-use std::f64::consts::PI;
+use std::f32::consts::PI;
+
+fn dispersion_peak<T: Real>(gravity: T, wind_speed: T, fetch: T) -> T {
+    // Note: pow(x, 1/3) is missing in [Horvath2015]
+    T::new(22.0) * (gravity.powi(2) / (wind_speed * fetch)).powf(T::new(1.0/3.0))
+}
 
 /// Representing a spectral density function of angular frequency.
 ///
@@ -22,16 +26,6 @@ pub struct SpectrumJONSWAP<T: Real> {
     pub gravity: T,    // [m/s^2]
 }
 
-impl<T: Real> SpectrumJONSWAP<T> {
-    fn dispersion_peak(&self) -> T {
-        let third: T = cast(1.0/3.0f64).unwrap();
-        let factor: T = cast(22.0f64).unwrap();
-
-        // NOTE: pow(x, 1/3) missing in [Horvath2015]
-        factor * (self.gravity.powi(2) / (self.wind_speed * self.fetch)).powf(third)
-    }
-}
-
 impl<T: Real> Spectrum<T> for SpectrumJONSWAP<T> {
     // [Horvath15] Eq. 28
     fn evaluate(&self, omega: T) -> T {
@@ -39,23 +33,14 @@ impl<T: Real> Spectrum<T> for SpectrumJONSWAP<T> {
             return T::zero();
         }
 
-        let two: T = cast(2.0f64).unwrap();
-        let gamma: T = cast(3.3f64).unwrap();
-        let omega_peak = self.dispersion_peak();
-        let alpha = {
-            let factor: T = cast(0.076f64).unwrap();
-            let exponent: T = cast(0.22f64).unwrap();
+        let gamma = T::new(3.3);
+        let omega_peak = dispersion_peak(self.gravity, self.wind_speed, self.fetch);
+        let alpha =
+            T::new(0.076) * (self.wind_speed.powi(2) / (self.fetch * self.gravity)).powf(T::new(0.22));
+        let sigma = T::new(if omega <= omega_peak { 0.07 } else { 0.09 });
+        let r = (-(omega - omega_peak).powi(2) / (T::new(2.0) * (sigma * omega_peak).powi(2))).exp();
 
-            factor * (self.wind_speed.powi(2) / (self.fetch * self.gravity)).powf(exponent)
-        };
-        let sigma: T = {
-            let sigma = if omega <= omega_peak { 0.07 } else { 0.09 };
-            cast(sigma).unwrap()
-        };
-        let r = (-(omega - omega_peak).powi(2) / (two * (sigma * omega_peak).powi(2))).exp();
-        let factor: T = cast(-5.0/4.0).unwrap();
-
-        (alpha * (self.gravity).powi(2) / omega.powi(5)) * (factor * (omega_peak/omega).powi(4)).exp() * gamma.powf(r)
+        (alpha * (self.gravity).powi(2) / omega.powi(5)) * (T::new(-5.0/4.0) * (omega_peak/omega).powi(4)).exp() * gamma.powf(r)
     }
 }
 
@@ -71,14 +56,11 @@ impl<T: Real> SpectrumTMA<T> {
     /// Using the approximation from Thompson and Vincent, 1983
     /// as proposed in Section 5.1.5.
     fn kitaigorodskii_depth_attenuation(&self, omega: T) -> T {
-        let half: T = cast(0.5f64).unwrap();
-        let two: T = cast(2.0f64).unwrap();
-
-        let omega_h = (omega * (self.depth / self.jonswap.gravity)).max(T::zero()).min(two);
+        let omega_h = (omega * (self.depth / self.jonswap.gravity)).max(T::zero()).min(T::new(2.0));
         if omega_h <= T::one() {
-            half * omega_h.powi(2)
+            T::new(0.5) * omega_h.powi(2)
         } else {
-            T::one() - half * (two - omega_h).powi(2)
+            T::one() - T::new(0.5) * (T::new(2.0) - omega_h).powi(2)
         }
     }
 }
@@ -94,6 +76,8 @@ pub struct Parameters<T> {
     pub water_density: T,
     pub water_depth: T,
     pub gravity: T, // [m/s^2]
+    pub wind_speed: T, // [m/s]
+    pub fetch: T,
 }
 
 pub fn build_height_spectrum<S, T>(
@@ -105,11 +89,11 @@ where
     S: Spectrum<T>,
     T: Real
 {
-    let pi: T = cast(PI).unwrap();
+    let pi = T::new(PI);
     let mut height_spectrum = Array2::from_elem((resolution+1, resolution+1), (T::zero(), T::zero()));
     par_azip!(index (i, j), mut height_spectrum in {
-        let x: T = cast(2 * i as isize - resolution as isize).unwrap();
-        let y: T = cast(2 * j as isize - resolution as isize).unwrap();
+        let x: T = T::new(2 * i as isize - resolution as isize);
+        let y: T = T::new(2 * j as isize - resolution as isize);
 
         if i == resolution/2 && j == resolution/2 {
             *height_spectrum = (T::zero(), T::zero());
@@ -137,20 +121,17 @@ where
 {
     assert!(pos.magnitude() > T::default_epsilon());
 
-    let two: T = cast(2.0f64).unwrap();
-    let pi: T = cast(PI).unwrap();
-
     let theta = (pos.y).atan2(pos.x);
-    let grad_k = two * pi / domain_size;
+    let grad_k = T::new(2.0 * PI) / domain_size;
 
     let (omega, grad_omega) = dispersion_capillary(parameters, pos.magnitude());
     let spreading = directional_spreading(parameters, omega, theta, directional_base_donelan_banner);
     let sample = spectrum.evaluate(omega);
 
     let normal::StandardNormal(z) = rand::random();
-    let phase = two * pi * rand::random::<T>();
+    let phase = T::new(2.0 * PI) * rand::random::<T>();
 
-    let amplitude = cast::<_, T>(z).unwrap() * (two * spreading * sample * grad_k.powi(2) * grad_omega / pos.magnitude()).sqrt();
+    let amplitude = T::new(z as f32) * (T::new(2.0) * spreading * sample * grad_k.powi(2) * grad_omega / pos.magnitude()).sqrt();
 
     ((phase.cos() * amplitude, phase.sin() * amplitude), omega)
 }
@@ -161,8 +142,6 @@ where
     T: Real
 {
     let sech = |x: T| { T::one() / x.cosh() };
-    let two: T = cast(2.0f64).unwrap();
-    let three: T = cast(3.0f64).unwrap();
 
     let sigma = parameters.surface_tension;
     let rho = parameters.water_density;
@@ -173,8 +152,8 @@ where
     let dispersion = ((g*k + (sigma/rho) * k.powi(3)) * (h*k).tanh()).sqrt();
     let grad_dispersion = (
             h * sech(h*k).powi(2) * (g*k + (sigma/rho) * k.powi(3)) +
-            (h*k).tanh() * (g + three*(sigma/rho) * k.powi(2))
-        ) / (two * dispersion);
+            (h*k).tanh() * (g + T::new(3.0)*(sigma/rho) * k.powi(2))
+        ) / (T::new(2.0) * dispersion);
 
     (dispersion, grad_dispersion)
 }
@@ -187,9 +166,26 @@ where
     unimplemented!()
 }
 
-fn directional_base_donelan_banner<T>(params: &Parameters<T>, omega: T, theta: T) -> T
+// Donelan-Banner Directional Spreading [Horvath15] Eq. 38
+fn directional_base_donelan_banner<T>(parameters: &Parameters<T>, omega: T, theta: T) -> T
 where
     T: Real,
 {
-    unimplemented!()
+    let beta = {
+        let omega_peak = dispersion_peak(parameters.gravity, parameters.wind_speed, parameters.fetch);
+        let omega_ratio = omega/omega_peak;
+
+        if omega_ratio < T::new(0.95) {
+            T::new(2.61) * omega_ratio.powf(T::new(1.3))
+        } else if omega_ratio < T::new(1.6) {
+            T::new(2.28) * omega_ratio.powf(T::new(-1.3))
+        } else {
+            let epsilon = T::new(-0.4) + T::new(0.8393) * (T::new(-0.567) * (omega_ratio.powi(2)).ln()).exp();
+            T::new(10).powf(epsilon)
+        }
+    };
+
+    let sech = |x: T| { T::one() / x.cosh() };
+
+    beta / (T::new(2.0) * (beta * T::new(PI)).tanh()) * sech(beta * theta).powi(2)
 }
