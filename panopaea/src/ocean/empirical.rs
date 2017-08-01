@@ -1,11 +1,15 @@
 
-use cgmath::{self, InnerSpace};
+use cgmath::{self, InnerSpace, Vector3};
+use fft;
 use math::{integration, Real};
-use ndarray::{Array2};
+use ndarray::{Array2, ArrayView2, ArrayViewMut2, Axis};
+use num::Zero;
+use num::complex::Complex;
 use rand;
 use rand::distributions::normal;
 
 use std::f32::consts::PI;
+use std::sync::Arc;
 
 fn dispersion_peak<T: Real>(gravity: T, wind_speed: T, fetch: T) -> T {
     // Note: pow(x, 1/3) is missing in [Horvath2015]
@@ -79,51 +83,57 @@ pub struct Parameters<T> {
     pub wind_speed: T, // [m/s]
     pub fetch: T,
     pub swell: T,
+    pub domain_size: T,
 }
 
 pub fn build_height_spectrum<S, T>(
     parameters: &Parameters<T>,
     spectrum: &S,
-    domain_size: T,
-    resolution: usize) -> Array2<(T, T)>
+    resolution: usize) -> (Array2<Complex<T>>, Array2<T>)
 where
     S: Spectrum<T>,
     T: Real
 {
     let pi = T::new(PI);
-    let mut height_spectrum = Array2::from_elem((resolution+1, resolution+1), (T::zero(), T::zero()));
-    par_azip!(index (j, i), mut height_spectrum in {
-        let x: T = T::new(2 * i as isize - resolution as isize);
-        let y: T = T::new(2 * j as isize - resolution as isize);
+    let mut height_spectrum = Array2::from_elem((resolution, resolution), Complex::new(T::zero(), T::zero()));
+    let mut omega = Array2::zeros((resolution, resolution));
+    par_azip!(
+        index (j, i),
+        mut height_spectrum,
+        mut omega
+    in {
+        let x = T::new(2 * i as isize - resolution as isize - 1);
+        let y = T::new(2 * j as isize - resolution as isize - 1);
 
-        if i == resolution/2 && j == resolution/2 {
-            *height_spectrum = (T::zero(), T::zero());
-        } else {
+        let sample = {
             let k = cgmath::vec2(
-                pi * x / domain_size,
-                pi * y / domain_size,
+                pi * x / parameters.domain_size,
+                pi * y / parameters.domain_size,
             );
-            let (sample, _omega) = sample_spectrum(parameters, spectrum, k, domain_size);
-            *height_spectrum = sample;
+            sample_spectrum(parameters, spectrum, k)
         };
+
+        *height_spectrum = sample.0;
+        *omega = sample.1;
     });
 
-    height_spectrum
+    (height_spectrum, omega)
 }
 
 fn sample_spectrum<S, T>(
     parameters: &Parameters<T>,
     spectrum: &S,
-    pos: cgmath::Vector2<T>,
-    domain_size: T) -> ((T, T), T)
+    pos: cgmath::Vector2<T>) -> (Complex<T>, T)
 where
     S: Spectrum<T>,
     T: Real
 {
-    assert!(pos.magnitude() > T::default_epsilon());
+    if pos.magnitude() < T::default_epsilon() {
+        return (Complex::new(T::zero(), T::zero()), T::zero());
+    }
 
     let theta = (pos.y).atan2(pos.x);
-    let grad_k = T::new(2.0 * PI) / domain_size;
+    let grad_k = T::new(2.0 * PI) / parameters.domain_size;
 
     let (omega, grad_omega) = dispersion_capillary(parameters, pos.magnitude());
     let spreading = directional_spreading(parameters, omega, theta, directional_base_donelan_banner);
@@ -134,7 +144,7 @@ where
 
     let amplitude = T::new(z as f32) * (T::new(2.0) * spreading * sample * grad_k.powi(2) * grad_omega / pos.magnitude()).sqrt();
 
-    ((phase.cos() * amplitude, phase.sin() * amplitude), omega)
+    (Complex::new(phase.cos() * amplitude, phase.sin() * amplitude), omega)
 }
 
 
@@ -206,4 +216,146 @@ where
     let sech = |x: T| { T::one() / x.cosh() };
 
     beta / (T::new(2.0) * (beta * T::new(PI)).tanh()) * sech(beta * theta).powi(2)
+}
+
+pub struct Ocean<T> {
+    resolution: usize,
+    fft_plan: fft::FFTplanner<T>,
+    fft_buffer: Array2<Complex<T>>,
+    displacement_x: Array2<Complex<T>>,
+    displacement_y: Array2<Complex<T>>,
+    displacement_z: Array2<Complex<T>>,
+}
+
+impl<T> Ocean<T> where T: Real + fft::FFTnum {
+    pub fn new(resolution: usize) -> Self {
+        Ocean {
+            fft_plan: fft::FFTplanner::new(true),
+            fft_buffer: Array2::from_elem((resolution, resolution), Complex::new(T::zero(), T::zero())),
+            resolution,
+            displacement_x: Self::new_map(resolution),
+            displacement_y: Self::new_map(resolution),
+            displacement_z: Self::new_map(resolution),
+        }
+    }
+
+    fn new_map(resolution: usize) -> Array2<Complex<T>> {
+        Array2::from_elem((resolution, resolution), Complex::new(T::zero(), T::zero()))
+    }
+
+    pub fn new_displacement(&self) -> Array2<Vector3<T>> {
+        Array2::from_elem((self.resolution, self.resolution), Vector3::zero())
+    }
+
+    pub fn propagate(
+        &mut self,
+        time: T,
+        parameters: &Parameters<T>,
+        samples: ArrayView2<Complex<T>>,
+        omega: ArrayView2<T>,
+        mut displacement: ArrayViewMut2<Vector3<T>>)
+    {
+        let plan = self.fft_plan.plan_fft(self.resolution);
+        let resolution = self.resolution;
+        let pi = T::new(PI);
+
+        // propgation step
+        par_azip!(
+            index (j, i),
+            omega,
+            ref dx (&mut self.displacement_x),
+            ref dy (&mut self.displacement_y),
+            ref dz (&mut self.displacement_z),
+        in {
+            let x = T::new(2 * i as isize - resolution as isize - 1);
+            let y = T::new(2 * j as isize - resolution as isize - 1);
+
+            let k = cgmath::vec2(
+                pi * x / parameters.domain_size,
+                pi * y / parameters.domain_size,
+            );
+
+            let dispersion = omega * time;
+            let disp_pos = Complex::new(dispersion.cos(), dispersion.sin());
+            let disp_neg = Complex::new(dispersion.cos(),-dispersion.sin());
+
+            let sample = samples[(j, i)] * disp_pos + samples[(resolution-j-1, resolution-i-1)] * disp_neg;
+            let k_normalized = {
+                let len = k.magnitude();
+                if len < T::default_epsilon() {
+                    Complex::new(T::zero(), T::zero())
+                } else {
+                    Complex::new(k.x / len, k.y / len)
+                }
+            };
+
+            *dx = Complex::new(T::zero(), -k_normalized.re) * sample;
+            *dy = sample;
+            *dz = Complex::new(T::zero(), -k_normalized.im) * sample;
+        });
+
+        let plan = self.fft_plan.plan_fft(self.resolution);
+
+        Self::spectral_to_spatial(&plan, self.displacement_x.view_mut(), self.fft_buffer.view_mut());
+        // correction step
+        par_azip!(
+            index (j, i),
+            src (&self.fft_buffer),
+            ref dst (&mut displacement)
+        in {
+            if (j+i) % 2 == 0 {
+                dst.x = -src.re;
+            } else {
+                dst.x = src.re;
+            }
+        });
+
+        Self::spectral_to_spatial(&plan, self.displacement_y.view_mut(), self.fft_buffer.view_mut());
+        // correction step
+        par_azip!(
+            index (j, i),
+            src (&self.fft_buffer),
+            ref dst (&mut displacement)
+        in {
+            if (j+i) % 2 == 0 {
+                dst.y = -src.re;
+            } else {
+                dst.y = src.re;
+            }
+        });
+
+        Self::spectral_to_spatial(&plan, self.displacement_z.view_mut(), self.fft_buffer.view_mut());
+        // correction step
+        par_azip!(
+            index (j, i),
+            src (&self.fft_buffer),
+            ref dst (&mut displacement)
+        in {
+            if (j+i) % 2 == 0 {
+                dst.z = -src.re;
+            } else {
+                dst.z = src.re;
+            }
+        });
+    }
+
+    // Transform a spatial 2d field into a spatial field
+    // Output is stored in self.fft_buffer
+    fn spectral_to_spatial(plan: &Arc<fft::FFT<T>>, mut input: ArrayViewMut2<Complex<T>>, mut output: ArrayViewMut2<Complex<T>>) {
+        par_azip!(
+            mut src (input.axis_iter_mut(Axis(0)))
+            mut dst (output.axis_iter_mut(Axis(0)))
+        in {
+            plan.process(src.as_slice_mut().unwrap(), dst.as_slice_mut().unwrap());
+        });
+
+        input.assign(&output.t());
+
+        par_azip!(
+            mut src (input.axis_iter_mut(Axis(0)))
+            mut dst (output.axis_iter_mut(Axis(0)))
+        in {
+            plan.process(src.as_slice_mut().unwrap(), dst.as_slice_mut().unwrap());
+        });
+    }
 }
