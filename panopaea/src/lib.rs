@@ -11,6 +11,7 @@ extern crate generic_array;
 extern crate mopa;
 extern crate rand;
 extern crate rayon;
+extern crate rustfft as fft;
 extern crate typenum;
 extern crate cgmath;
 extern crate specs;
