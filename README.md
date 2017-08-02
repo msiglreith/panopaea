@@ -13,3 +13,6 @@
 </p>
 
 *panopaea-bors* powered by [`bors-ng`](https://github.com/bors-ng/bors-ng).
+
+
+[![Join the chat at https://gitter.im/panopaea/Lobby](https://badges.gitter.im/panopaea/Lobby.svg)](https://gitter.im/panopaea/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
