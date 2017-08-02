@@ -10,6 +10,9 @@
     <a href="https://travis-ci.org/msiglreith/panopaea">
       <img src="https://img.shields.io/travis/msiglreith/panopaea/master.svg?style=flat-square" alt="Travis Build Status">
     </a>
+    <a href="https://gitter.im/panopaea/Lobby">
+      <img src="https://img.shields.io/badge/GITTER-join%20chat-green.svg?style=flat-square" alt="Gitter Chat">
+  </a>
 </p>
 
 *panopaea-bors* powered by [`bors-ng`](https://github.com/bors-ng/bors-ng).
