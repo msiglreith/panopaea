@@ -1,8 +1,8 @@
 
-use cgmath::{ApproxEq, BaseNum, Vector2, InnerSpace, MetricSpace, VectorSpace};
+use cgmath::{ApproxEq, BaseNum, InnerSpace, MetricSpace, Vector2, VectorSpace};
 use generic_array::GenericArray;
 use generic_array::typenum::{U2, U3};
-use std::ops::{Add, AddAssign, Deref, DerefMut, Sub, SubAssign, Mul, Div, DivAssign, Rem};
+use std::ops::{Add, AddAssign, Deref, DerefMut, Div, DivAssign, Mul, Rem, Sub, SubAssign};
 use num::Zero;
 
 use super::{Dim, Real};
@@ -10,8 +10,8 @@ use super::{Dim, Real};
 #[derive(Debug)]
 pub struct VectorN<S, N: Dim<S>>(pub GenericArray<S, N>);
 
-unsafe impl<S: Send, N: Dim<S>> Send for VectorN<S, N> { }
-unsafe impl<S: Sync, N: Dim<S>> Sync for VectorN<S, N> { }
+unsafe impl<S: Send, N: Dim<S>> Send for VectorN<S, N> {}
+unsafe impl<S: Sync, N: Dim<S>> Sync for VectorN<S, N> {}
 
 impl<S: Clone, N: Dim<S>> Clone for VectorN<S, N> {
     fn clone(&self) -> Self {
@@ -19,16 +19,20 @@ impl<S: Clone, N: Dim<S>> Clone for VectorN<S, N> {
     }
 }
 
-impl <S: Clone, N: Dim<S>> VectorN<S, N> {
+impl<S: Clone, N: Dim<S>> VectorN<S, N> {
     pub fn from_elem(elem: S) -> Self {
         let len = N::to_usize();
         VectorN(GenericArray::clone_from_slice(&vec![elem; len]))
     }
 }
 
-impl <S: Copy, N: Dim<S>> Copy for VectorN<S, N> where GenericArray<S, N>: Copy { }
+impl<S: Copy, N: Dim<S>> Copy for VectorN<S, N>
+where
+    GenericArray<S, N>: Copy,
+{
+}
 
-impl <S: Copy + Zero, N: Dim<S>> Zero for VectorN<S, N> {
+impl<S: Copy + Zero, N: Dim<S>> Zero for VectorN<S, N> {
     #[inline]
     fn zero() -> VectorN<S, N> {
         Self::from_elem(S::zero())
@@ -41,7 +45,7 @@ impl <S: Copy + Zero, N: Dim<S>> Zero for VectorN<S, N> {
     }
 }
 
-impl <S: Add<Output=S> + Copy, N: Dim<S>> Add for VectorN<S, N> {
+impl<S: Add<Output = S> + Copy, N: Dim<S>> Add for VectorN<S, N> {
     type Output = Self;
     fn add(mut self, rhs: Self) -> Self::Output {
         for i in 0..N::to_usize() {
@@ -51,7 +55,7 @@ impl <S: Add<Output=S> + Copy, N: Dim<S>> Add for VectorN<S, N> {
     }
 }
 
-impl <S: AddAssign + Copy, N: Dim<S>> AddAssign for VectorN<S, N> {
+impl<S: AddAssign + Copy, N: Dim<S>> AddAssign for VectorN<S, N> {
     fn add_assign(&mut self, rhs: Self) {
         for i in 0..N::to_usize() {
             self[i] += rhs[i];
@@ -59,7 +63,7 @@ impl <S: AddAssign + Copy, N: Dim<S>> AddAssign for VectorN<S, N> {
     }
 }
 
-impl <S: Sub<Output=S> + Copy, N: Dim<S>> Sub for VectorN<S, N> {
+impl<S: Sub<Output = S> + Copy, N: Dim<S>> Sub for VectorN<S, N> {
     type Output = Self;
     fn sub(mut self, rhs: Self) -> Self::Output {
         for i in 0..N::to_usize() {
@@ -69,7 +73,7 @@ impl <S: Sub<Output=S> + Copy, N: Dim<S>> Sub for VectorN<S, N> {
     }
 }
 
-impl <S: SubAssign + Copy, N: Dim<S>> SubAssign for VectorN<S, N> {
+impl<S: SubAssign + Copy, N: Dim<S>> SubAssign for VectorN<S, N> {
     fn sub_assign(&mut self, rhs: Self) {
         for i in 0..N::to_usize() {
             self[i] -= rhs[i];
@@ -77,7 +81,7 @@ impl <S: SubAssign + Copy, N: Dim<S>> SubAssign for VectorN<S, N> {
     }
 }
 
-impl <S: Mul<Output=S> + Copy, N: Dim<S>> Mul<S> for VectorN<S, N> {
+impl<S: Mul<Output = S> + Copy, N: Dim<S>> Mul<S> for VectorN<S, N> {
     type Output = Self;
     fn mul(mut self, rhs: S) -> Self::Output {
         for i in 0..N::to_usize() {
@@ -87,7 +91,7 @@ impl <S: Mul<Output=S> + Copy, N: Dim<S>> Mul<S> for VectorN<S, N> {
     }
 }
 
-impl <S: Div<Output=S> + Copy, N: Dim<S>> Div<S> for VectorN<S, N> {
+impl<S: Div<Output = S> + Copy, N: Dim<S>> Div<S> for VectorN<S, N> {
     type Output = Self;
     fn div(mut self, rhs: S) -> Self::Output {
         for i in 0..N::to_usize() {
@@ -97,7 +101,7 @@ impl <S: Div<Output=S> + Copy, N: Dim<S>> Div<S> for VectorN<S, N> {
     }
 }
 
-impl <S: DivAssign + Copy, N: Dim<S>> DivAssign<S> for VectorN<S, N> {
+impl<S: DivAssign + Copy, N: Dim<S>> DivAssign<S> for VectorN<S, N> {
     fn div_assign(&mut self, rhs: S) {
         for i in 0..N::to_usize() {
             self[i] /= rhs;
@@ -105,7 +109,7 @@ impl <S: DivAssign + Copy, N: Dim<S>> DivAssign<S> for VectorN<S, N> {
     }
 }
 
-impl <S, N: Dim<S>> Rem<S> for VectorN<S, N> {
+impl<S, N: Dim<S>> Rem<S> for VectorN<S, N> {
     type Output = Self;
     fn rem(self, _rhs: S) -> Self::Output {
         unimplemented!()
@@ -145,13 +149,15 @@ impl<S: Real, N: Dim<S>> ApproxEq for VectorN<S, N> {
 }
 
 impl<S: BaseNum, N: Dim<S>> VectorSpace for VectorN<S, N>
-    where VectorN<S, N>: Copy
+where
+    VectorN<S, N>: Copy,
 {
     type Scalar = S;
 }
 
 impl<S: Real, N: Dim<S>> InnerSpace for VectorN<S, N>
-    where VectorN<S, N>: Copy
+where
+    VectorN<S, N>: Copy,
 {
     fn dot(self, other: Self) -> S {
         let mut dot = S::zero();
@@ -168,7 +174,7 @@ impl<S: Real, N: Dim<S>> MetricSpace for VectorN<S, N> {
     fn distance2(self, other: Self) -> Self::Metric {
         let mut dist = S::zero();
         for i in 0..N::to_usize() {
-            dist += (self[i]-other[i]).powi(2)
+            dist += (self[i] - other[i]).powi(2)
         }
         dist
     }
@@ -176,7 +182,7 @@ impl<S: Real, N: Dim<S>> MetricSpace for VectorN<S, N> {
     fn distance(self, other: Self) -> Self::Metric {
         let mut dist = S::zero();
         for i in 0..N::to_usize() {
-            dist += (self[i]-other[i]).powi(2)
+            dist += (self[i] - other[i]).powi(2)
         }
         dist.sqrt()
     }
