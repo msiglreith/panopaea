@@ -19,9 +19,7 @@ struct HalfEdge {
     face: FaceId,
 }
 
-struct Vertex {
-
-}
+struct Vertex {}
 
 pub struct Mesh {
     edges: Edges,
