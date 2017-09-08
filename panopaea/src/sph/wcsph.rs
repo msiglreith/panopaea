@@ -4,7 +4,6 @@
 use cgmath::MetricSpace;
 use math::{Dim, Real};
 use particle::{Particles, Processor};
-use rayon::prelude::*;
 use typenum::U2;
 use num::cast;
 
@@ -40,7 +39,7 @@ pub fn compute_density<T>(p: &Processor, (kernel_size, grid): (T, &BoundedGrid<T
 
     par_azip!(
         index i,
-        mut density (density),
+        density (mut density),
         mass (masses),
         pos (position),
     in {
@@ -126,7 +125,7 @@ pub fn integrate_explicit_euler<T>(p: &Processor, timestep: T)
         p.read_property::<Acceleration<T, U2>>(),
     );
 
-    par_azip!(mut pos (pos), mut vel (vel), accel (accel) in {
+    par_azip!(pos (mut pos), mut vel (vel), accel (accel) in {
         *vel += accel * timestep;
         *pos += *vel * timestep;
     });

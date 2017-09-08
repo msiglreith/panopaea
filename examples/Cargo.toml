@@ -11,3 +11,7 @@ panopaea_utils = { path = "../panopaea_utils" }
 [[example]]
 name = "ocean"
 path = "ocean.rs"
+
+[[example]]
+name = "dec-fluid"
+path = "dec_fluid.rs"

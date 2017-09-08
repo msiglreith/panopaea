@@ -401,29 +401,29 @@ pub fn inv_div_coeff_2d(levels: usize,
         let mut dst_vy = dst_vy.slice_mut(coarse_slice);
 
         // split into wavelet components
-        let (mut div_00, mut div_01, mut div_10, mut div_11) = {
-            let (mut low_y, mut high_y) = src_div.view().split_at(Axis(0), level_size.0);
+        let (div_00, div_01, div_10, div_11) = {
+            let (low_y, high_y) = src_div.view().split_at(Axis(0), level_size.0);
             let (lylx, lyhx) = low_y.split_at(Axis(1), level_size.1);
             let (hylx, hyhx) = high_y.split_at(Axis(1), level_size.1);
             (lylx, lyhx, hylx, hyhx)
         };
 
-        let (mut n_00, mut n_01, mut n_10, mut n_11) = {
-            let (mut low_y, mut high_y) = src_n.view().split_at(Axis(0), level_size.0);
+        let (n_00, n_01, n_10, n_11) = {
+            let (low_y, high_y) = src_n.view().split_at(Axis(0), level_size.0);
             let (lylx, lyhx) = low_y.split_at(Axis(1), level_size.1);
             let (hylx, hyhx) = high_y.split_at(Axis(1), level_size.1);
             (lylx, lyhx, hylx, hyhx)
         };
 
         let (mut vx_00, mut vx_01, mut vx_10, mut vx_11) = {
-            let (mut low_y, mut high_y) = dst_vx.view_mut().split_at(Axis(0), level_size.0);
+            let (low_y, high_y) = dst_vx.view_mut().split_at(Axis(0), level_size.0);
             let (lylx, lyhx) = low_y.split_at(Axis(1), level_size.1);
             let (hylx, hyhx) = high_y.split_at(Axis(1), level_size.1);
             (lylx, lyhx, hylx, hyhx)
         };
 
         let (mut vy_00, mut vy_01, mut vy_10, mut vy_11) = {
-            let (mut low_y, mut high_y) = dst_vy.view_mut().split_at(Axis(0), level_size.0);
+            let (low_y, high_y) = dst_vy.view_mut().split_at(Axis(0), level_size.0);
             let (lylx, lyhx) = low_y.split_at(Axis(1), level_size.1);
             let (hylx, hyhx) = high_y.split_at(Axis(1), level_size.1);
             (lylx, lyhx, hylx, hyhx)

@@ -2,17 +2,33 @@
 use math::LinearView;
 use ndarray::{Array, ArrayView, ArrayViewMut, Ix1, Ix2, LinalgScalar, Zip};
 use sparse::{DiagonalMatrix, SparseMatrix};
-use std::ops::Neg;
+use std::ops::{Deref, DerefMut, Neg};
 use domain::Grid2d;
-use super::manifold::{Hodge0, Hodge1, Hodge2, Manifold2d};
+use super::manifold::{DerivativePrimal, DerivativeDual, Hodge, Manifold2d};
 
 #[derive(Debug)]
-pub struct Staggered2d<T> {
-    data: Array<T, Ix1>,
-    dim: (usize, usize), // (y, x)
+pub struct Simplex0<T>(pub Array<T, Ix2>);
+
+impl<T> Deref for Simplex0<T> {
+    type Target = Array<T, Ix2>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
-impl<T> Staggered2d<T> {
+impl<T> DerefMut for Simplex0<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+#[derive(Debug)]
+pub struct Simplex1<T> {
+    pub data: Array<T, Ix1>,
+    pub dim: (usize, usize), // (y, x)
+}
+
+impl<T> Simplex1<T> {
     pub fn dim(&self) -> (usize, usize) {
         self.dim
     }
@@ -34,7 +50,7 @@ impl<T> Staggered2d<T> {
     }
 }
 
-impl<T> LinearView for Staggered2d<T> {
+impl<T> LinearView for Simplex1<T> {
     type Elem = T;
     fn view_linear(&self) -> ArrayView<T, Ix1> {
         self.data.view()
@@ -45,11 +61,28 @@ impl<T> LinearView for Staggered2d<T> {
     }
 }
 
-impl<T> Hodge0<T> for Grid2d
-where T: LinalgScalar + Neg<Output = T> + Send + Sync
+#[derive(Debug)]
+pub struct Simplex2<T>(pub Array<T, Ix2>);
+
+impl<T> Deref for Simplex2<T> {
+    type Target = Array<T, Ix2>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T> DerefMut for Simplex2<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+
+impl<T> Hodge<T, Simplex0<T>> for Grid2d
+where
+    T: LinalgScalar + Neg<Output = T> + Send + Sync,
 {
-    type Simplex0 = Array<T, Ix2>;
-    fn apply(&self, dual: &mut Self::Simplex0, primal: &Self::Simplex0) {
+    fn apply(&self, dual: &mut Simplex0<T>, primal: &Simplex0<T>) {
         let two = T::one() + T::one();
         let four = two + two;
         let (h, w) = self.dim();
@@ -92,7 +125,7 @@ where T: LinalgScalar + Neg<Output = T> + Send + Sync
                 *dual = primal;
             });
     }
-    fn apply_inv(&self, primal: &mut Self::Simplex0, dual: &Self::Simplex0) {
+    fn apply_inv(&self, primal: &mut Simplex0<T>, dual: &Simplex0<T>) {
         let two = T::one() + T::one();
         let four = two + two;
         let (h, w) = self.dim();
@@ -137,11 +170,11 @@ where T: LinalgScalar + Neg<Output = T> + Send + Sync
     }
 }
 
-impl<T> Hodge1<T> for Grid2d
-where T: LinalgScalar + Neg<Output = T> + Send + Sync
+impl<T> Hodge<T, Simplex1<T>> for Grid2d
+where
+    T: LinalgScalar + Neg<Output = T> + Send + Sync,
 {
-    type Simplex1 = Staggered2d<T>;
-    fn apply(&self, dual: &mut Self::Simplex1, primal: &Self::Simplex1) {
+    fn apply(&self, dual: &mut Simplex1<T>, primal: &Simplex1<T>) {
         let primal = primal.split();
         let mut dual = dual.split_mut();
 
@@ -157,7 +190,7 @@ where T: LinalgScalar + Neg<Output = T> + Send + Sync
                 *dual = -primal;
             });
     }
-    fn apply_inv(&self, primal: &mut Self::Simplex1, dual: &Self::Simplex1) {
+    fn apply_inv(&self, primal: &mut Simplex1<T>, dual: &Simplex1<T>) {
         let dual = dual.split();
         let mut primal = primal.split_mut();
 
@@ -175,49 +208,23 @@ where T: LinalgScalar + Neg<Output = T> + Send + Sync
     }
 }
 
-impl<T> Hodge2<T> for Grid2d
-where T: LinalgScalar
+impl<T> Hodge<T, Simplex2<T>> for Grid2d
+where
+    T: LinalgScalar,
 {
-    type Simplex2 = Array<T, Ix2>;
-    fn apply(&self, dual: &mut Self::Simplex2, primal: &Self::Simplex2) {
+    fn apply(&self, dual: &mut Simplex2<T>, primal: &Simplex2<T>) {
         dual.assign(primal);
     }
-    fn apply_inv(&self, primal: &mut Self::Simplex2, dual: &Self::Simplex2) {
+    fn apply_inv(&self, primal: &mut Simplex2<T>, dual: &Simplex2<T>) {
         primal.assign(dual);
     }
 }
 
-impl<T> Manifold2d<T> for Grid2d
-    where T: LinalgScalar + Neg<Output = T> + Send + Sync
+impl<T> DerivativePrimal<T, Simplex0<T>, Simplex1<T>> for Grid2d
+where
+    T: LinalgScalar + Send + Sync,
 {
-    fn num_elem_0(&self) -> usize {
-        (self.dim().0 + 1) * (self.dim().1 + 1)
-    }
-
-    fn num_elem_1(&self) -> usize {
-        (self.dim().0 + 1) * self.dim().1 + self.dim().0 * (self.dim().1 + 1)
-    }
-
-    fn num_elem_2(&self) -> usize {
-        self.dim().0 * self.dim().1
-    }
-
-    fn new_simplex_0(&self) -> Self::Simplex0 {
-        Array::from_elem((self.dim().0 + 1, self.dim().1 + 1), T::zero()) // vertices
-    }
-
-    fn new_simplex_1(&self) -> Self::Simplex1 {
-        Staggered2d {
-            data: Array::from_elem((self.dim().0 + 1) * self.dim().1 + self.dim().0 * (self.dim().1 + 1), T::zero()),
-            dim: self.dim(),
-        }
-    }
-
-    fn new_simplex_2(&self) -> Self::Simplex2 {
-        Array::from_elem((self.dim().0, self.dim().1), T::zero()) // faces
-    }
-
-    fn derivative_0_primal(&self, edges: &mut Self::Simplex1, vertices: &Self::Simplex0) {
+    fn apply(&self, edges: &mut Simplex1<T>, vertices: &Simplex0<T>) {
         let mut edges = edges.split_mut();
 
         par_azip!(
@@ -232,8 +239,36 @@ impl<T> Manifold2d<T> for Grid2d
             v1 (vertices.slice(s![1.., ..]))
          in { *edge = v1 - v0; });
     }
+}
 
-    fn derivative_0_dual(&self, edges: &mut Self::Simplex1, faces: &Self::Simplex2) {
+impl<T> DerivativePrimal<T, Simplex1<T>, Simplex2<T>> for Grid2d
+where
+    T: LinalgScalar + Neg<Output = T> + Send + Sync,
+{
+    fn apply(&self, faces: &mut Simplex2<T>, edges: &Simplex1<T>) {
+        let edges = edges.split();
+
+        par_azip!(
+            mut face (faces.deref_mut()),
+            top    (edges.0.slice(s![..-1,   ..])),
+            bottom (edges.0.slice(s![ 1..,   ..])),
+            left   (edges.1.slice(s![  .., ..-1])),
+            right  (edges.1.slice(s![  .., 1..]))
+         in { *face = -bottom + top - left + right; });
+    }
+}
+
+impl<T> DerivativeDual<T, Simplex1<T>, Simplex0<T>> for Grid2d {
+    fn apply(&self, _: &mut Simplex0<T>, _: &Simplex1<T>) {
+        unimplemented!()
+    }
+}
+
+impl<T> DerivativeDual<T, Simplex2<T>, Simplex1<T>> for Grid2d
+where
+    T: LinalgScalar + Neg<Output = T> + Send + Sync,
+{
+    fn apply(&self, edges: &mut Simplex1<T>, faces: &Simplex2<T>) {
         let mut edges = edges.split_mut();
 
         // vertical
@@ -249,25 +284,56 @@ impl<T> Manifold2d<T> for Grid2d
             f0 (faces.slice(s![.., ..-1])),
             f1 (faces.slice(s![.., 1..]))
          in { *edge = f0 - f1; });
+    }
+}
 
+impl<T> Manifold2d<T, Simplex0<T>, Simplex1<T>, Simplex2<T>> for Grid2d
+    where T: LinalgScalar + Neg<Output = T> + Send + Sync
+{
+    fn num_elem_0(&self) -> usize {
+        (self.dim().0 + 1) * (self.dim().1 + 1)
     }
 
-    fn derivative_1_primal(&self, faces: &mut Self::Simplex2, edges: &Self::Simplex1) {
-        let edges = edges.split();
-
-        par_azip!(
-            mut face (faces),
-            top    (edges.0.slice(s![..-1,   ..])),
-            bottom (edges.0.slice(s![ 1..,   ..])),
-            left   (edges.1.slice(s![  .., ..-1])),
-            right  (edges.1.slice(s![  .., 1..]))
-         in { *face = -bottom + top - left + right; });
+    fn num_elem_1(&self) -> usize {
+        (self.dim().0 + 1) * self.dim().1 + self.dim().0 * (self.dim().1 + 1)
     }
 
-    fn derivative_1_dual(&self, faces: &mut Self::Simplex0, edges: &Self::Simplex1) {
+    fn num_elem_2(&self) -> usize {
+        self.dim().0 * self.dim().1
+    }
+
+    fn new_simplex_0(&self) -> Simplex0<T> {
+        Simplex0(Array::from_elem((self.dim().0 + 1, self.dim().1 + 1), T::zero())) // vertices
+    }
+
+    fn new_simplex_1(&self) -> Simplex1<T> {
+        Simplex1 {
+            data: Array::from_elem((self.dim().0 + 1) * self.dim().1 + self.dim().0 * (self.dim().1 + 1), T::zero()),
+            dim: self.dim(),
+        }
+    }
+
+    fn new_simplex_2(&self) -> Simplex2<T> {
+        Simplex2(Array::from_elem((self.dim().0, self.dim().1), T::zero())) // faces
+    }
+
+    fn derivative_0_primal(&self, edges: &mut Simplex1<T>, vertices: &Simplex0<T>) {
         unimplemented!()
     }
 
+    fn derivative_0_dual(&self, edges: &mut Simplex1<T>, faces: &Simplex2<T>) {
+        unimplemented!()
+    }
+
+    fn derivative_1_primal(&self, faces: &mut Simplex2<T>, edges: &Simplex1<T>) {
+        unimplemented!()
+    }
+
+    fn derivative_1_dual(&self, faces: &mut Simplex0<T>, edges: &Simplex1<T>) {
+        unimplemented!()
+    }
+
+    /*
     fn derivative_0_primal_matrix(&self) -> SparseMatrix<T> {
         unimplemented!()
         /*
@@ -332,6 +398,7 @@ impl<T> Manifold2d<T> for Grid2d
     fn hodge_2_dual_matrix(&self) -> DiagonalMatrix<T> {
         unimplemented!()
     }
+    */
 }
 
 #[cfg(test)]
