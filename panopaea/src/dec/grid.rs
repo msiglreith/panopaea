@@ -4,7 +4,7 @@ use ndarray::{Array, ArrayView, ArrayViewMut, Ix1, Ix2, LinalgScalar, Zip};
 use sparse::{DiagonalMatrix, SparseMatrix};
 use std::ops::{Deref, DerefMut, Neg};
 use domain::Grid2d;
-use super::manifold::{DerivativePrimal, DerivativeDual, Hodge, Manifold2d};
+use super::manifold::{DecDomain2d, DerivativePrimal, DerivativeDual, Hodge, Manifold2d};
 
 #[derive(Debug)]
 pub struct Simplex0<T>(pub Array<T, Ix2>);
@@ -19,6 +19,17 @@ impl<T> Deref for Simplex0<T> {
 impl<T> DerefMut for Simplex0<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
+    }
+}
+
+impl<T> LinearView for Simplex0<T> {
+    type Elem = T;
+    fn view_linear(&self) -> ArrayView<T, Ix1> {
+        self.view_linear()
+    }
+
+    fn view_linear_mut(&mut self) -> ArrayViewMut<T, Ix1> {
+        self.view_linear_mut()
     }
 }
 
@@ -77,6 +88,16 @@ impl<T> DerefMut for Simplex2<T> {
     }
 }
 
+impl<T> LinearView for Simplex2<T> {
+    type Elem = T;
+    fn view_linear(&self) -> ArrayView<T, Ix1> {
+        self.view_linear()
+    }
+
+    fn view_linear_mut(&mut self) -> ArrayViewMut<T, Ix1> {
+        self.view_linear_mut()
+    }
+}
 
 impl<T> Hodge<T, Simplex0<T>> for Grid2d
 where
@@ -287,7 +308,13 @@ where
     }
 }
 
-impl<T> Manifold2d<T, Simplex0<T>, Simplex1<T>, Simplex2<T>> for Grid2d
+impl<T> DecDomain2d<T> for Grid2d {
+    type Simplex0 = Simplex0<T>;
+    type Simplex1 = Simplex1<T>;
+    type Simplex2 = Simplex2<T>;
+}
+
+impl<T> Manifold2d<T> for Grid2d
     where T: LinalgScalar + Neg<Output = T> + Send + Sync
 {
     fn num_elem_0(&self) -> usize {
@@ -315,22 +342,6 @@ impl<T> Manifold2d<T, Simplex0<T>, Simplex1<T>, Simplex2<T>> for Grid2d
 
     fn new_simplex_2(&self) -> Simplex2<T> {
         Simplex2(Array::from_elem((self.dim().0, self.dim().1), T::zero())) // faces
-    }
-
-    fn derivative_0_primal(&self, edges: &mut Simplex1<T>, vertices: &Simplex0<T>) {
-        unimplemented!()
-    }
-
-    fn derivative_0_dual(&self, edges: &mut Simplex1<T>, faces: &Simplex2<T>) {
-        unimplemented!()
-    }
-
-    fn derivative_1_primal(&self, faces: &mut Simplex2<T>, edges: &Simplex1<T>) {
-        unimplemented!()
-    }
-
-    fn derivative_1_dual(&self, faces: &mut Simplex0<T>, edges: &Simplex1<T>) {
-        unimplemented!()
     }
 
     /*
@@ -367,49 +378,31 @@ impl<T> Manifold2d<T, Simplex0<T>, Simplex1<T>, Simplex2<T>> for Grid2d
         matrix
         */
     }
-
-    fn derivative_0_dual_matrix(&self) -> SparseMatrix<T> {
-        unimplemented!()
-    }
-
-    fn derivative_1_primal_matrix(&self) -> SparseMatrix<T> {
-        unimplemented!()
-    }
-    fn derivative_1_dual_matrix(&self) -> SparseMatrix<T> {
-        unimplemented!()
-    }
-
-    fn hodge_0_primal_matrix(&self) -> DiagonalMatrix<T> {
-        unimplemented!()
-    }
-    fn hodge_1_primal_matrix(&self) -> DiagonalMatrix<T> {
-        unimplemented!()
-    }
-    fn hodge_2_primal_matrix(&self) -> DiagonalMatrix<T> {
-        unimplemented!()
-    }
-
-    fn hodge_0_dual_matrix(&self) -> DiagonalMatrix<T> {
-        unimplemented!()
-    }
-    fn hodge_1_dual_matrix(&self) -> DiagonalMatrix<T> {
-        unimplemented!()
-    }
-    fn hodge_2_dual_matrix(&self) -> DiagonalMatrix<T> {
-        unimplemented!()
-    }
     */
 }
 
 #[cfg(test)]
 mod tests {
+    use math::Real;
     use ndarray::*;
     use super::*;
+
+    fn grid2d_simplex0<T: Real>(grid: &Grid2d) -> Simplex0<T> {
+        <Grid2d as Manifold2d<T>>::new_simplex_0(&grid)
+    }
+
+    fn grid2d_simplex1<T: Real>(grid: &Grid2d) -> Simplex1<T> {
+        <Grid2d as Manifold2d<T>>::new_simplex_1(&grid)
+    }
+
+    fn grid2d_simplex2<T: Real>(grid: &Grid2d) -> Simplex2<T> {
+        <Grid2d as Manifold2d<T>>::new_simplex_2(&grid)
+    }
 
     #[test]
     fn grid_2d_divergence() {
         let grid = Grid2d::new((5, 5));
-        let mut vel = <Grid2d as Manifold2d<f32>>::new_simplex_1(&grid);
+        let mut vel = grid2d_simplex1::<f32>(&grid);
         let velocities_y = &[
             [0.0, 0.0, 0.0, 0.0, 0.0],
             [0.0, 1.8, 1.8, 0.0, 0.0],
@@ -445,8 +438,8 @@ mod tests {
             0.0, 0.0, 0.0, 0.0, 0.0,
         ];
 
-        let mut vel_primal = <Grid2d as Manifold2d<f32>>::new_simplex_1(&grid);
-        let mut divergence = <Grid2d as Manifold2d<f32>>::new_simplex_2(&grid);
+        let mut vel_primal = grid2d_simplex1::<f32>(&grid);
+        let mut divergence = grid2d_simplex2::<f32>(&grid);
         grid.hodge_1_dual(&mut vel_primal, &mut vel);
         grid.derivative_1_primal(&mut divergence, &vel_primal);
 
@@ -466,16 +459,16 @@ mod tests {
     fn grid_2d_laplacian() {
         let grid = Grid2d::new((3, 3));
 
-        let faces_primal = arr2(&[
+        let faces_primal = Simplex2(arr2(&[
             [-0.0, -3.0, -0.0],
             [-0.0, 2.0, 6.0],
             [1.0, -0.0, -0.0],
-        ]);
+        ]));
 
-        let mut faces_dual = <Grid2d as Manifold2d<f64>>::new_simplex_2(&grid);
-        let mut edges_dual = <Grid2d as Manifold2d<f64>>::new_simplex_1(&grid);
-        let mut edges_primal = <Grid2d as Manifold2d<f64>>::new_simplex_1(&grid);
-        let mut laplacian = <Grid2d as Manifold2d<f64>>::new_simplex_2(&grid);
+        let mut faces_dual = grid2d_simplex2::<f64>(&grid);
+        let mut edges_dual = grid2d_simplex1::<f64>(&grid);
+        let mut edges_primal = grid2d_simplex1::<f64>(&grid);
+        let mut laplacian = grid2d_simplex2::<f64>(&grid);
 
         grid.hodge_2_primal(&mut faces_dual, &faces_primal);
         grid.derivative_0_dual(&mut edges_dual, &faces_dual);
@@ -499,13 +492,13 @@ mod tests {
     fn grid_2d_gradient() {
         let grid = Grid2d::new((3, 3));
 
-        let faces_dual = arr2(&[
+        let faces_dual = Simplex2(arr2(&[
             [-0.0, -3.0, -0.0],
             [-0.0, 2.0, 6.0],
             [1.0, -0.0, -0.0],
-        ]);
+        ]));
 
-        let mut gradient = <Grid2d as Manifold2d<f64>>::new_simplex_1(&grid);
+        let mut gradient = grid2d_simplex1::<f64>(&grid);
 
         grid.derivative_0_dual(&mut gradient, &faces_dual);
 

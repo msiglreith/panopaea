@@ -10,10 +10,21 @@ use std::ops::Mul;
 /// Storage type for 2-simplices (face).
 /// A differential primal 2-form is stored for each 2-simplex.
 
-pub trait Manifold2d<T, S0, S1, S2>
-    : Hodge<T, S0> + Hodge<T, S1> + Hodge<T, S2>
-    + DerivativePrimal<T, S0, S1> + DerivativeDual<T, S2, S1>
-    + DerivativePrimal<T, S1, S2> + DerivativeDual<T, S1, S0>
+pub trait DecDomain2d<T> {
+    type Simplex0;
+    type Simplex1;
+    type Simplex2;
+}
+
+pub trait Manifold2d<T>
+    : DecDomain2d<T>
+    + Hodge<T, <Self as DecDomain2d<T>>::Simplex0>
+    + Hodge<T, <Self as DecDomain2d<T>>::Simplex1>
+    + Hodge<T, <Self as DecDomain2d<T>>::Simplex2>
+    + DerivativePrimal<T, <Self as DecDomain2d<T>>::Simplex0, <Self as DecDomain2d<T>>::Simplex1>
+    + DerivativePrimal<T, <Self as DecDomain2d<T>>::Simplex1, <Self as DecDomain2d<T>>::Simplex2>
+    + DerivativeDual<T, <Self as DecDomain2d<T>>::Simplex2, <Self as DecDomain2d<T>>::Simplex1>
+    + DerivativeDual<T, <Self as DecDomain2d<T>>::Simplex1, <Self as DecDomain2d<T>>::Simplex0>
 {
     ///
     fn num_elem_0(&self) -> usize;
@@ -23,43 +34,52 @@ pub trait Manifold2d<T, S0, S1, S2>
     fn num_elem_2(&self) -> usize;
 
     ///
-    fn new_simplex_0(&self) -> S0;
+    fn new_simplex_0(&self) -> Self::Simplex0;
     ///
-    fn new_simplex_1(&self) -> S1;
+    fn new_simplex_1(&self) -> Self::Simplex1;
     ///
-    fn new_simplex_2(&self) -> S2;
+    fn new_simplex_2(&self) -> Self::Simplex2;
 
     /// Discrete exterior derivative operator for primal 0-forms.
     ///
     /// The operator maps primal 0-forms to primal 1-forms.
-    fn derivative_0_primal(&self, &mut S1, &S0);
-    fn derivative_0_dual(&self, &mut S1, &S2);
+    fn derivative_0_primal(&self, d_src: &mut Self::Simplex1, src: &Self::Simplex0) {
+        <Self as DerivativePrimal<T, Self::Simplex0, Self::Simplex1>>::apply(self, d_src, src)
+    }
+
+    fn derivative_0_dual(&self, d_src: &mut Self::Simplex1, src: &Self::Simplex2) {
+        <Self as DerivativeDual<T, Self::Simplex2, Self::Simplex1>>::apply(self, d_src, src)
+    }
 
     /// Discrete exterior derivative operator for primal 1-forms.
     ///
     /// The operator maps primal 1-forms to primal 2-forms.
-    fn derivative_1_primal(&self, &mut S2, &S1);
-    fn derivative_1_dual(&self, &mut S0, &S1);
-
-    fn hodge_0_primal(&self, dual: &mut S0, primal: &S0) {
-        <Self as Hodge<T, S0>>::apply(self, dual, primal)
+    fn derivative_1_primal(&self, d_src: &mut Self::Simplex2, src: &Self::Simplex1) {
+        <Self as DerivativePrimal<T, Self::Simplex1, Self::Simplex2>>::apply(self, d_src, src)
     }
-    fn hodge_2_dual(&self, primal: &mut S0, dual: &S0) {
-        <Self as Hodge<T, S0>>::apply_inv(self, primal, dual)
+    fn derivative_1_dual(&self, d_src: &mut Self::Simplex0, src: &Self::Simplex1) {
+        <Self as DerivativeDual<T, Self::Simplex1, Self::Simplex0>>::apply(self, d_src, src)
     }
 
-    fn hodge_1_primal(&self, dual: &mut S1, primal: &S1) {
-        <Self as Hodge<T, S1>>::apply(self, dual, primal)
+    fn hodge_0_primal(&self, dual: &mut Self::Simplex0, primal: &Self::Simplex0) {
+        <Self as Hodge<T, Self::Simplex0>>::apply(self, dual, primal)
     }
-    fn hodge_1_dual(&self, primal: &mut S1, dual: &S1) {
-        <Self as Hodge<T, S1>>::apply_inv(self, primal, dual)
+    fn hodge_2_dual(&self, primal: &mut Self::Simplex0, dual: &Self::Simplex0) {
+        <Self as Hodge<T, Self::Simplex0>>::apply_inv(self, primal, dual)
     }
 
-    fn hodge_2_primal(&self, dual: &mut S2, primal: &S2) {
-        <Self as Hodge<T, S2>>::apply(self, dual, primal)
+    fn hodge_1_primal(&self, dual: &mut Self::Simplex1, primal: &Self::Simplex1) {
+        <Self as Hodge<T, Self::Simplex1>>::apply(self, dual, primal)
     }
-    fn hodge_0_dual(&self, primal: &mut S2, dual: &S2) {
-        <Self as Hodge<T, S2>>::apply_inv(self, primal, dual)
+    fn hodge_1_dual(&self, primal: &mut Self::Simplex1, dual: &Self::Simplex1) {
+        <Self as Hodge<T, Self::Simplex1>>::apply_inv(self, primal, dual)
+    }
+
+    fn hodge_2_primal(&self, dual: &mut Self::Simplex2, primal: &Self::Simplex2) {
+        <Self as Hodge<T, Self::Simplex2>>::apply(self, dual, primal)
+    }
+    fn hodge_0_dual(&self, primal: &mut Self::Simplex2, dual: &Self::Simplex2) {
+        <Self as Hodge<T, Self::Simplex2>>::apply_inv(self, primal, dual)
     }
 }
 

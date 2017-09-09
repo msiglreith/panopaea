@@ -1,6 +1,6 @@
 
 extern crate panopaea;
-extern crate panopaea_util as util;
+extern crate panopaea_utils as util;
 extern crate nalgebra as na;
 extern crate ndarray;
 extern crate stopwatch;
@@ -9,28 +9,36 @@ use ndarray::Array2;
 use panopaea::pcg;
 use panopaea::math::{self, vec2};
 use panopaea::domain::Grid2d;
-use panopaea::dec::grid::Staggered2d;
+use panopaea::dec::grid::{Simplex0, Simplex1, Simplex2};
 use panopaea::dec::manifold::Manifold2d;
 use panopaea::math::LinearView;
 use std::cmp;
 use stopwatch::Stopwatch;
 
+fn grid2d_simplex1(grid: &Grid2d) -> Simplex1<f64> {
+    <Grid2d as Manifold2d<f64>>::new_simplex_1(&grid)
+}
+
+fn grid2d_simplex2(grid: &Grid2d) -> Simplex2<f64> {
+    <Grid2d as Manifold2d<f64>>::new_simplex_2(&grid)
+}
+
 fn main() {
     let grid = Grid2d::new((128, 128));
 
-    let mut vel = <Grid2d as Manifold2d<f64>>::new_simplex_1(&grid);
-    let mut pressure = <Grid2d as Manifold2d<f64>>::new_simplex_2(&grid);
-    let mut density = <Grid2d as Manifold2d<f64>>::new_simplex_2(&grid);
+    let mut vel = grid2d_simplex1(&grid);
+    let mut pressure = grid2d_simplex2(&grid);
+    let mut density = grid2d_simplex2(&grid);
 
-    let mut vel_temp = <Grid2d as Manifold2d<f64>>::new_simplex_1(&grid);
-    let mut vel_primal_temp = <Grid2d as Manifold2d<f64>>::new_simplex_1(&grid);
-    let mut temp = <Grid2d as Manifold2d<f64>>::new_simplex_2(&grid);
-    let mut pressure_temp = <Grid2d as Manifold2d<f64>>::new_simplex_2(&grid);
+    let mut vel_temp = grid2d_simplex1(&grid);
+    let mut vel_primal_temp = grid2d_simplex1(&grid);
+    let mut temp = grid2d_simplex2(&grid);
+    let mut pressure_temp = grid2d_simplex2(&grid);
 
     // conjugate gradient
-    let mut auxiliary = <Grid2d as Manifold2d<f64>>::new_simplex_2(&grid);
-    let mut residual = <Grid2d as Manifold2d<f64>>::new_simplex_2(&grid);
-    let mut search = <Grid2d as Manifold2d<f64>>::new_simplex_2(&grid);
+    let mut auxiliary = grid2d_simplex2(&grid);
+    let mut residual = grid2d_simplex2(&grid);
+    let mut search = grid2d_simplex2(&grid);
 
     let timestep = 0.05;
     let threshold = 0.1;
@@ -48,15 +56,11 @@ fn main() {
             }
         }
 
-        // println!("pre vel: {:#?}", &vel.split());
-
         advect(&mut temp, &density, timestep, &vel);
         advect_mac(&mut vel_temp, &vel, timestep, &vel);
 
         density.assign(&temp);
         vel.view_linear_mut().assign(&vel_temp.view_linear());
-
-        // println!("compress vel: {:#?}", &vel.split());
 
         vel_temp.view_linear_mut().fill(0.0);
         temp.view_linear_mut().fill(0.0);
@@ -85,9 +89,14 @@ fn main() {
         vel_temp.view_linear_mut().fill(0.0);
 
         pcg::precond_conjugate_gradient(
-            &(), &mut pressure, &temp,
-            100, threshold,
-            &mut residual, &mut auxiliary, &mut search,
+            &(),
+            &mut pressure,
+            &temp,
+            100,
+            threshold,
+            &mut residual,
+            &mut auxiliary,
+            &mut search,
             |mut laplacian, p| {
                 grid.hodge_2_primal(&mut pressure_temp, &p);
                 grid.derivative_0_dual(&mut vel_temp, &pressure_temp);
@@ -111,18 +120,9 @@ fn main() {
 
         println!("{} ms", sw.elapsed_ms());
 
-        // println!("pressure: {:#?}", &pressure);
-
         // project velocity
         grid.hodge_2_primal(&mut pressure_temp, &pressure);
         grid.derivative_0_dual(&mut vel_temp, &pressure_temp);
-
-        /*
-        for v in vel_temp.view_linear_mut() {
-            *v *= timestep;
-        }
-        */
-
         vel.view_linear_mut().scaled_add(timestep, &vel_temp.view_linear());
 
         {
@@ -139,8 +139,6 @@ fn main() {
                 vy[(max_y, x)] = 0.0;
             }
         }
-
-        // println!("vel: {:#?}", &vel);
 
         if i % 10 == 0 {
             let (img_data, dim) = {
@@ -172,7 +170,7 @@ pub fn integrate_euler(pos: na::Vector2<f64>, vel: na::Vector2<f64>, dt: f64) ->
     pos + dt * vel
 }
 
-pub fn advect(dst: &mut Array2<f64>, src: &Array2<f64>, timestep: f64, vel: &Staggered2d<f64>) {
+pub fn advect(dst: &mut Simplex2<f64>, src: &Simplex2<f64>, timestep: f64, vel: &Simplex1<f64>) {
     let q = &src;
     let (vy, vx) = vel.split();
 
@@ -212,7 +210,7 @@ pub fn advect(dst: &mut Array2<f64>, src: &Array2<f64>, timestep: f64, vel: &Sta
     }
 }
 
-pub fn advect_mac(dst: &mut Staggered2d<f64>, src: &Staggered2d<f64>, timestep: f64, vel: &Staggered2d<f64>) {
+pub fn advect_mac(dst: &mut Simplex1<f64>, src: &Simplex1<f64>, timestep: f64, vel: &Simplex1<f64>) {
     let (qy, qx) = src.split();
     let (mut dy, mut dx) = dst.split_mut();
     let (vy, vx) = vel.split();
