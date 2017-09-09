@@ -1,5 +1,6 @@
 
 use ndarray::{Array, ArrayView, ArrayViewMut, Dimension, Ix1};
+use std::ops::{Deref, DerefMut};
 use super::Real;
 
 pub trait LinearView {
@@ -31,8 +32,7 @@ pub trait LinearViewReal<A: Real>: LinearView<Elem = A> {
 impl<T, A: Real> LinearViewReal<A> for T
 where
     T: LinearView<Elem = A>,
-{
-}
+{}
 
 impl<A, D: Dimension> LinearView for Array<A, D> {
     type Elem = A;

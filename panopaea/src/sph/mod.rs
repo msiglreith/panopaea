@@ -74,6 +74,6 @@ pub fn reset_acceleration<T, N>(p: &Processor)
     where T: Real, N: Dim<T>
 {
     use self::property::Acceleration;
-    let mut accel = p.write_property::<Acceleration<T, N>>();
-    accel.par_iter_mut().for_each(|mut a| *a = Acceleration::<T, N>::new() );
+    let accel = p.write_property::<Acceleration<T, N>>();
+    accel.par_iter_mut().for_each(|a| *a = Acceleration::<T, N>::new() );
 }

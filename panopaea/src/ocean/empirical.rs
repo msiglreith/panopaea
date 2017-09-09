@@ -96,10 +96,10 @@ where
 {
     let pi = T::new(PI);
     let mut height_spectrum = Array2::from_elem((resolution, resolution), Complex::new(T::zero(), T::zero()));
-    let mut omega = Array2::zeros((resolution, resolution));
+    let omega = Array2::zeros((resolution, resolution));
     par_azip!(
         index (j, i),
-        mut height_spectrum,
+        &mut height_spectrum,
         mut omega
     in {
         let x = T::new(2 * i as isize - resolution as isize - 1);
