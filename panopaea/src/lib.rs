@@ -1,5 +1,4 @@
 
-extern crate alga;
 extern crate nalgebra as na;
 extern crate num;
 #[macro_use]
@@ -15,7 +14,7 @@ extern crate rustfft as fft;
 extern crate typenum;
 extern crate cgmath;
 extern crate specs;
-extern crate sprs;
+// extern crate sprs;
 
 pub mod dec;
 pub mod domain;

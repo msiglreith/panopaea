@@ -8,12 +8,10 @@ use self::property::*;
 
 use sph::grid::BoundedGrid;
 use sph::property::*;
-use sph::kernel::{self, Kernel};
+use sph::kernel::{self};
 use particle::{Particles, Processor};
 use typenum::U2;
-use math::{Real, Dim, VectorN};
-use cgmath::{InnerSpace, MetricSpace};
-use num::Zero;
+use math::{Real, Dim};
 
 pub fn init<T, N>(particles: &mut Particles)
     where T: Real + 'static,
@@ -32,7 +30,6 @@ pub fn init<T, N>(particles: &mut Particles)
 pub fn apply_forces<T>(p: &Processor, timestep: T)
     where T: Real + 'static,
 {
-    // println!("-- apply forces");
     let (velocities, accelerations) = (
         p.write_property::<Velocity<T, U2>>(),
         p.read_property::<Acceleration<T, U2>>());
@@ -41,8 +38,6 @@ pub fn apply_forces<T>(p: &Processor, timestep: T)
         vel (mut velocities),
         accel (accelerations)
      in { *vel += accel * timestep; });
-
-    // println!("velocity: {:?}", p.write_property::<Velocity<T, U2>>());
 }
 
 // Alg. 1 `Simulation Loop`, 3
@@ -50,7 +45,6 @@ pub fn apply_forces<T>(p: &Processor, timestep: T)
 pub fn predict_position<T>(p: &Processor, timestep: T)
     where T: Real,
 {
-    // println!("-- predict positions");
     let (pred_positions, positions, velocities) = (
         p.write_property::<PredPosition<T, U2>>(),
         p.read_property::<Position<T, U2>>(),
@@ -61,8 +55,6 @@ pub fn predict_position<T>(p: &Processor, timestep: T)
         pos (positions),
         vel (velocities)
      in { *pred_pos = pos + vel * timestep; });
-
-    // println!("pred_pose: {:?}", p.write_property::<PredPosition<T, U2>>());
 }
 
 // Alg. 1 `Simulation Loop`, 10

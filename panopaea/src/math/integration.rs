@@ -7,7 +7,6 @@ where
     T: Real,
 {
     let interval_length = interval.1 - interval.0;
-    let substeps = 128;
     let substep_length = interval_length / T::new(substeps);
 
     let integral = (0..substeps + 1).fold(T::zero(), |integral, i| {

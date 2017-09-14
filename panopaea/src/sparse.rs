@@ -1,5 +1,5 @@
 
-use ndarray::{Array, ArrayView, ArrayViewMut, Ix1, Ix2, LinalgScalar, Zip};
+use ndarray::{Array, ArrayView, ArrayViewMut, Ix1, Ix2, LinalgScalar};
 use std::ops::{Index, IndexMut, Mul};
 
 /// Diagonal matrix
