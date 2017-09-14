@@ -96,11 +96,12 @@ where
 {
     let pi = T::new(PI);
     let mut height_spectrum = Array2::from_elem((resolution, resolution), Complex::new(T::zero(), T::zero()));
-    let omega = Array2::zeros((resolution, resolution));
+    let mut omega = Array2::zeros((resolution, resolution));
+
     par_azip!(
         index (j, i),
-        &mut height_spectrum,
-        mut omega
+        mut height_spectrum,
+        mut omega,
     in {
         let x = T::new(2 * i as isize - resolution as isize - 1);
         let y = T::new(2 * j as isize - resolution as isize - 1);
@@ -255,7 +256,6 @@ impl<T> Ocean<T> where T: Real + fft::FFTnum {
         omega: ArrayView2<T>,
         mut displacement: ArrayViewMut2<Vector3<T>>)
     {
-        let plan = self.fft_plan.plan_fft(self.resolution);
         let resolution = self.resolution;
         let pi = T::new(PI);
 

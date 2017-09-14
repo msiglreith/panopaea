@@ -146,7 +146,7 @@ pub fn ifwt_1d<W: Wavelet<f64>>(mut output: ArrayViewMut<f64, Ix1>, levels: usiz
 pub fn fwt_2d_isotropic<W: Wavelet<f64>>(mut output: ArrayViewMut<f64, Ix2>, levels: usize, mut temp: ArrayViewMut<f64, Ix2>) {
     let mut level_size = output.dim();
 
-    for n in 0..levels {
+    for _ in 0..levels {
         let coarse_slice = s![..level_size.0 as isize, ..level_size.1 as isize];
         let mut src = temp.slice_mut(coarse_slice);
         let mut dest = output.slice_mut(coarse_slice);
@@ -208,7 +208,7 @@ pub fn fwt_2d_separate_isotropic<Wx, Wy>(mut output: ArrayViewMut<f64, Ix2>, lev
 {
     let mut level_size = output.dim();
 
-    for n in 0..levels {
+    for _ in 0..levels {
         let coarse_slice = s![..level_size.0 as isize, ..level_size.1 as isize];
         let mut src = temp.slice_mut(coarse_slice);
         let mut dest = output.slice_mut(coarse_slice);
@@ -326,29 +326,29 @@ pub fn div_coeff_2d(levels: usize,
         level_size = (level_size.0 / 2, level_size.1 / 2);
 
         // split into wavelet components
-        let (mut vx_00, mut vx_01, mut vx_10, mut vx_11) = {
-            let (mut low_y, mut high_y) = src_vx.view().split_at(Axis(0), level_size.0);
+        let (vx_00, vx_01, vx_10, vx_11) = {
+            let (low_y, high_y) = src_vx.view().split_at(Axis(0), level_size.0);
             let (lylx, lyhx) = low_y.split_at(Axis(1), level_size.1);
             let (hylx, hyhx) = high_y.split_at(Axis(1), level_size.1);
             (lylx, lyhx, hylx, hyhx)
         };
 
-        let (mut vy_00, mut vy_01, mut vy_10, mut vy_11) = {
-            let (mut low_y, mut high_y) = src_vy.view().split_at(Axis(0), level_size.0);
+        let (vy_00, vy_01, vy_10, vy_11) = {
+            let (low_y, high_y) = src_vy.view().split_at(Axis(0), level_size.0);
             let (lylx, lyhx) = low_y.split_at(Axis(1), level_size.1);
             let (hylx, hyhx) = high_y.split_at(Axis(1), level_size.1);
             (lylx, lyhx, hylx, hyhx)
         };
 
         let (mut div_00, mut div_01, mut div_10, mut div_11) = {
-            let (mut low_y, mut high_y) = dst_div.view_mut().split_at(Axis(0), level_size.0);
+            let (low_y, high_y) = dst_div.view_mut().split_at(Axis(0), level_size.0);
             let (lylx, lyhx) = low_y.split_at(Axis(1), level_size.1);
             let (hylx, hyhx) = high_y.split_at(Axis(1), level_size.1);
             (lylx, lyhx, hylx, hyhx)
         };
 
         let (mut n_00, mut n_01, mut n_10, mut n_11) = {
-            let (mut low_y, mut high_y) = dst_n.view_mut().split_at(Axis(0), level_size.0);
+            let (low_y, high_y) = dst_n.view_mut().split_at(Axis(0), level_size.0);
             let (lylx, lyhx) = low_y.split_at(Axis(1), level_size.1);
             let (hylx, hyhx) = high_y.split_at(Axis(1), level_size.1);
             (lylx, lyhx, hylx, hyhx)
@@ -457,7 +457,6 @@ pub fn fwt_1d_border<W: Wavelet<f64>>(input: ArrayView<f64, Ix1>, levels: usize)
     coarse.assign(&input);
 
     for _ in 0..levels {
-        let filter_size = W::filter_length();
         let border_width = W::border_width();
         let band_size = coarse.len() / 2 + 2 * border_width as usize;
         let mut detail = Array1::zeros(band_size);
@@ -474,7 +473,6 @@ pub fn fwt_1d_border<W: Wavelet<f64>>(input: ArrayView<f64, Ix1>, levels: usize)
 
 pub fn ifwt_1d_border<W: Wavelet<f64>>(&(ref coarse, ref details): &(Array1<f64>, Vec<Array1<f64>>)) -> Array1<f64> {
     let mut coarse = coarse.clone();
-    let filter_size = W::filter_length();
 
     for detail in details.iter().rev() {
         let input_len = coarse.len() + detail.len();
@@ -557,10 +555,8 @@ pub fn fwt_2d_separate_isotropic_border<Wx, Wy>(input: ArrayView<f64, Ix2>, leve
     let mut coarse = Array2::zeros(input.dim());
     coarse.assign(&input);
 
-    for n in 0..levels {
-        let filter_size_x = Wx::filter_length();
+    for _ in 0..levels {
         let border_width_x = Wx::border_width();
-        let filter_size_y = Wy::filter_length();
         let border_width_y = Wy::border_width();
         let band_size = (
             coarse.dim().0 / 2 + 2 * border_width_y as usize,
@@ -604,10 +600,7 @@ pub fn ifwt_2d_separate_isotropic_border<Wx, Wy>(&(ref coarse, ref details): &Wa
     where Wx: Wavelet<f64>, Wy: Wavelet<f64>
 {
     let mut coarse = coarse.clone();
-    let filter_size_x = Wx::filter_length();
-    let filter_size_y = Wy::filter_length();
-
-    for (n, detail) in details.iter().enumerate().rev() {
+    for (_, detail) in details.iter().enumerate().rev() {
         let border_width_x = Wx::border_width();
         let border_width_y = Wy::border_width();
         let mut up = Array2::zeros((

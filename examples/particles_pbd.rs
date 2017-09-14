@@ -9,6 +9,7 @@ extern crate rayon;
 
 use gfx::{Bind, Device, Factory};
 use gfx::traits::FactoryExt;
+use glutin::GlContext;
 
 use panopaea::*;
 use panopaea::particle::{Particles, Property};
@@ -51,12 +52,13 @@ impl Property for Vertex {
 
 fn main() {
     // rayon::initialize(rayon::Configuration::new().num_threads(1));
-
+    let mut events_loop = glutin::EventsLoop::new();
     let builder = glutin::WindowBuilder::new()
         .with_dimensions(1440, 900);
-        // .with_vsync();
+    let context = glutin::ContextBuilder::new()
+        .with_vsync(false);
     let (window, mut device, mut factory, main_color, _) =
-        gfx_window_glutin::init::<ColorFormat, DepthFormat>(builder);
+        gfx_window_glutin::init::<ColorFormat, DepthFormat>(builder, context, &events_loop);
     let mut encoder: gfx::Encoder<_, _> = factory.create_command_buffer().into();
 
     let vs = factory.create_shader_vertex(include_bytes!("data/particles.vs.glsl")).unwrap();
@@ -98,7 +100,7 @@ fn main() {
         let mut positions = Vec::new();
         let mut masses = Vec::new();
         for y in 0..40u8 {
-            for x in 0..20u8 {
+            for x in 0..30u8 {
                 let mut pos = sph::property::Position::new();
                 pos[0] = (x as f32) * smoothing * 0.75;
                 pos[1] = (y as f32) * smoothing * 0.75;
@@ -118,19 +120,12 @@ fn main() {
     let view = cgmath::Matrix4::one();
     let projection = cgmath::ortho(-20.0, 100.0, -20.0 * aspect, 100.0 * aspect, -5.0, 5.0);
 
-    let mut step = false;
+    let mut step = true;
     'main: loop {
-        step = false;
-        for event in window.poll_events() {
-            match event {
-                glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::A)) => { step = true; }
-                glutin::Event::KeyboardInput(glutin::ElementState::Released, _, Some(glutin::VirtualKeyCode::A)) => { step = false; }
-                glutin::Event::KeyboardInput(_, _, Some(glutin::VirtualKeyCode::Escape)) |
-                glutin::Event::Closed => break 'main,
-                _ => {},
-            }
-        }
+        step = true;
+        events_loop.poll_events(|_event| {
 
+        });
 
         let locals = Locals {
             view: view.into(),
@@ -151,8 +146,6 @@ fn main() {
                 accel.par_iter_mut().for_each(|mut accel| {
                     accel[1] += -10.0; // gravity
                 });
-
-                // println!("accel: {:?}", accel);
             })
             .run1(pbd::apply_forces, timestep)
             .run1(pbd::predict_position, timestep)
@@ -166,8 +159,6 @@ fn main() {
                        if pos[0] < 0.0 { pos[0] = 0.0; }
                        if pos[0] > border * smoothing { pos[0] = border * smoothing; }
                     });
-
-                // println!("post pred pos: {:?}", p.write_property::<pbd::property::PredPosition<f32, U2>>());
             })
             // Neighbor search
             .run(|p| {
@@ -202,8 +193,6 @@ fn main() {
                            if pos[0] < 0.0 { pos[0] = 0.0; }
                            if pos[0] > border * smoothing { pos[0] = border * smoothing; }
                         });
-
-                    // println!("iter: post pos: {:?}", position);
                 });
 
         }
@@ -212,7 +201,6 @@ fn main() {
             .run1(pbd::update_velocity, timestep)
             .run(pbd::update_position::<f32>);
 
-        // println!("");
         }
 
         // Update particle vertex data

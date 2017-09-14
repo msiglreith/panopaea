@@ -1,7 +1,7 @@
 
-use cgmath::{ApproxEq, BaseNum, InnerSpace, MetricSpace, Vector2, VectorSpace};
+use cgmath::{ApproxEq, BaseNum, InnerSpace, MetricSpace, VectorSpace};
 use generic_array::GenericArray;
-use generic_array::typenum::{U2, U3};
+use generic_array::typenum::{U2};
 use std::ops::{Add, AddAssign, Deref, DerefMut, Div, DivAssign, Mul, Rem, Sub, SubAssign};
 use num::Zero;
 

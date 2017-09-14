@@ -85,28 +85,52 @@ pub trait Manifold2d<T>
 
 pub trait Hodge<T, Simplex> {
     fn apply(&self, dual: &mut Simplex, primal: &Simplex);
-    // fn apply_matrix(&self, &mut SparseMatrix<T>);
+    fn apply_matrix(&self, &mut SparseMatrix<T>);
     fn apply_inv(&self, primal: &mut Simplex, dual: &Simplex);
-    // fn apply_matrix_inv(&self, &mut SparseMatrix<T>);
+    fn apply_matrix_inv(&self, &mut SparseMatrix<T>);
 }
 
-pub struct Hodge0<'a, T, S, M: 'a + Hodge<T, S>> {
+struct HodgeOperator<'a, T, M: 'a> {
     manifold: &'a M,
-    _marker: PhantomData<(S, T)>,
+    _marker: PhantomData<T>,
 }
 
-/*
-impl<'a, S, T, M> Mul<Hodge0<'a, T, S, M>> for SparseMatrix<T>
+pub struct Hodge0<'a, T, M: 'a>(HodgeOperator<'a, T, M>);
+pub struct Hodge1<'a, T, M: 'a>(HodgeOperator<'a, T, M>);
+pub struct Hodge2<'a, T, M: 'a>(HodgeOperator<'a, T, M>);
+
+impl<'a, T, M> Mul<Hodge0<'a, T, M>> for SparseMatrix<T>
 where
-    M: Hodge<T, S>
+    M: DecDomain2d<T> + Hodge<T, <M as DecDomain2d<T>>::Simplex0>
 {
     type Output = SparseMatrix<T>;
-    fn mul(self, op: Hodge0<T, S, M>) -> SparseMatrix<T> {
-        <M as Hodge<T, S>>::apply_matrix(op.manifold, &mut self);
+    fn mul(mut self, op: Hodge0<T, M>) -> SparseMatrix<T> {
+        <M as Hodge<T, <M as DecDomain2d<T>>::Simplex0>>::apply_matrix(op.0.manifold, &mut self);
         self
     }
 }
-*/
+
+impl<'a, T, M> Mul<Hodge1<'a, T, M>> for SparseMatrix<T>
+where
+    M: DecDomain2d<T> + Hodge<T, <M as DecDomain2d<T>>::Simplex1>
+{
+    type Output = SparseMatrix<T>;
+    fn mul(mut self, op: Hodge1<T, M>) -> SparseMatrix<T> {
+        <M as Hodge<T, <M as DecDomain2d<T>>::Simplex1>>::apply_matrix(op.0.manifold, &mut self);
+        self
+    }
+}
+
+impl<'a, T, M> Mul<Hodge2<'a, T, M>> for SparseMatrix<T>
+where
+    M: DecDomain2d<T> + Hodge<T, <M as DecDomain2d<T>>::Simplex2>
+{
+    type Output = SparseMatrix<T>;
+    fn mul(mut self, op: Hodge2<T, M>) -> SparseMatrix<T> {
+        <M as Hodge<T, <M as DecDomain2d<T>>::Simplex2>>::apply_matrix(op.0.manifold, &mut self);
+        self
+    }
+}
 
 pub trait DerivativePrimal<T, S, DS> {
     fn apply(&self, &mut DS, &S);

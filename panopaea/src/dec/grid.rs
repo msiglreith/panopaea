@@ -1,7 +1,7 @@
 
 use math::LinearView;
 use ndarray::{Array, ArrayView, ArrayViewMut, Ix1, Ix2, LinalgScalar, Zip};
-use sparse::{DiagonalMatrix, SparseMatrix};
+use sparse::{SparseMatrix};
 use std::ops::{Deref, DerefMut, Neg};
 use domain::Grid2d;
 use super::manifold::{DecDomain2d, DerivativePrimal, DerivativeDual, Hodge, Manifold2d};
@@ -25,11 +25,11 @@ impl<T> DerefMut for Simplex0<T> {
 impl<T> LinearView for Simplex0<T> {
     type Elem = T;
     fn view_linear(&self) -> ArrayView<T, Ix1> {
-        self.view_linear()
+        self.0.view_linear()
     }
 
     fn view_linear_mut(&mut self) -> ArrayViewMut<T, Ix1> {
-        self.view_linear_mut()
+        self.0.view_linear_mut()
     }
 }
 
@@ -91,11 +91,11 @@ impl<T> DerefMut for Simplex2<T> {
 impl<T> LinearView for Simplex2<T> {
     type Elem = T;
     fn view_linear(&self) -> ArrayView<T, Ix1> {
-        self.view_linear()
+        self.0.view_linear()
     }
 
     fn view_linear_mut(&mut self) -> ArrayViewMut<T, Ix1> {
-        self.view_linear_mut()
+        self.0.view_linear_mut()
     }
 }
 
@@ -189,6 +189,14 @@ where
                 *primal = dual;
             });
     }
+
+    fn apply_matrix(&self, _m: &mut SparseMatrix<T>) {
+        unimplemented!()
+    }
+
+    fn apply_matrix_inv(&self, _m: &mut SparseMatrix<T>) {
+        unimplemented!()
+    }
 }
 
 impl<T> Hodge<T, Simplex1<T>> for Grid2d
@@ -211,6 +219,7 @@ where
                 *dual = -primal;
             });
     }
+
     fn apply_inv(&self, primal: &mut Simplex1<T>, dual: &Simplex1<T>) {
         let dual = dual.split();
         let mut primal = primal.split_mut();
@@ -227,6 +236,14 @@ where
                 *primal = dual;
             });
     }
+
+    fn apply_matrix(&self, _m: &mut SparseMatrix<T>) {
+        unimplemented!()
+    }
+
+    fn apply_matrix_inv(&self, _m: &mut SparseMatrix<T>) {
+        unimplemented!()
+    }
 }
 
 impl<T> Hodge<T, Simplex2<T>> for Grid2d
@@ -236,8 +253,17 @@ where
     fn apply(&self, dual: &mut Simplex2<T>, primal: &Simplex2<T>) {
         dual.assign(primal);
     }
+
     fn apply_inv(&self, primal: &mut Simplex2<T>, dual: &Simplex2<T>) {
         primal.assign(dual);
+    }
+
+    fn apply_matrix(&self, _m: &mut SparseMatrix<T>) {
+        unimplemented!()
+    }
+
+    fn apply_matrix_inv(&self, _m: &mut SparseMatrix<T>) {
+        unimplemented!()
     }
 }
 

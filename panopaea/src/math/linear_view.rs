@@ -1,6 +1,5 @@
 
 use ndarray::{Array, ArrayView, ArrayViewMut, Dimension, Ix1};
-use std::ops::{Deref, DerefMut};
 use super::Real;
 
 pub trait LinearView {
@@ -17,6 +16,8 @@ pub trait LinearViewReal<A: Real>: LinearView<Elem = A> {
     fn norm_max(&self) -> A {
         let mut max = A::zero();
         for &x in self.view_linear() {
+            // TODO: check with `native` flag if we get normal performance with
+            //       standard min/max functions
             max = if x > max {
                 x
             } else if -x > max {
