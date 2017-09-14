@@ -22,7 +22,3 @@ rustfft = "2.0.0"
 [dev-dependencies]
 panopaea_utils = { path = "../panopaea_utils" }
 image = "0.10.3"
-gfx = "0.14"
-gfx_window_glutin = "0.14"
-glutin = "0.7"
-

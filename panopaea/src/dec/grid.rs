@@ -91,11 +91,11 @@ impl<T> DerefMut for Simplex2<T> {
 impl<T> LinearView for Simplex2<T> {
     type Elem = T;
     fn view_linear(&self) -> ArrayView<T, Ix1> {
-        self.view_linear()
+        self.0.view_linear()
     }
 
     fn view_linear_mut(&mut self) -> ArrayViewMut<T, Ix1> {
-        self.view_linear_mut()
+        self.0.view_linear_mut()
     }
 }
 

@@ -6,12 +6,14 @@ pub mod property;
 
 use self::property::*;
 
+use cgmath::{InnerSpace, MetricSpace};
 use sph::grid::BoundedGrid;
 use sph::property::*;
-use sph::kernel::{self};
+use sph::kernel::{self, Kernel};
 use particle::{Particles, Processor};
 use typenum::U2;
-use math::{Real, Dim};
+use math::{Real, Dim, VectorN};
+use num::Zero;
 
 pub fn init<T, N>(particles: &mut Particles)
     where T: Real + 'static,
@@ -35,7 +37,7 @@ pub fn apply_forces<T>(p: &Processor, timestep: T)
         p.read_property::<Acceleration<T, U2>>());
 
     par_azip!(
-        vel (mut velocities),
+        mut vel (velocities),
         accel (accelerations)
      in { *vel += accel * timestep; });
 }
@@ -51,7 +53,7 @@ pub fn predict_position<T>(p: &Processor, timestep: T)
         p.read_property::<Velocity<T, U2>>());
 
     par_azip!(
-        pred_pos (mut pred_positions),
+        mut pred_pos (pred_positions),
         pos (positions),
         vel (velocities)
      in { *pred_pos = pos + vel * timestep; });
@@ -71,7 +73,7 @@ pub fn calculate_lambda<T>(p: &Processor, (rest_density, kernel_size, relaxation
 
     par_azip!(
         index i,
-        lambda (mut lambdas),
+        mut lambda (lambdas),
         mass (masses),
         pos (positions),
     in {
@@ -124,7 +126,7 @@ pub fn calculate_pos_delta<T>(p: &Processor, (rest_density, kernel_size, grid): 
         index i,
         lambda_i (lambdas),
         pos (positions),
-        delta_pos (mut delta_pos)
+        mut delta_pos (delta_pos)
     in {
         // Calculate delta_p
         let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
@@ -146,7 +148,7 @@ pub fn apply_delta<T>(p: &Processor)
         p.read_property::<DeltaPos<T, U2>>());
 
     par_azip!(
-        pos (mut pos),
+        mut pos (pos),
         delta (delta)
     in { *pos += delta; });
 }
@@ -161,7 +163,7 @@ pub fn update_velocity<T>(p: &Processor, timestep: T)
         p.read_property::<PredPosition<T, U2>>());
 
     par_azip!(
-        vel (mut velocities),
+        mut vel (velocities),
         pos (positions),
         pred_pos (pred_positions)
     in { *vel = (pred_pos - pos) / timestep; });
@@ -177,7 +179,7 @@ pub fn update_position<T>(p: &Processor)
         p.read_property::<PredPosition<T, U2>>());
 
     par_azip!(
-        pos (mut positions),
+        mut pos (positions),
         pred_pos (pred_positions)
     in { *pos = pred_pos; });
 }
