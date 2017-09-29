@@ -14,10 +14,14 @@ use particle::{Particles, Processor};
 use typenum::U2;
 use math::{Real, Dim, VectorN};
 use num::Zero;
+use ndarray::Zip;
+use ndarray_parallel::prelude::*;
 
+/// Initialize required properties for running position based dynamics simulations.
 pub fn init<T, N>(particles: &mut Particles)
-    where T: Real + 'static,
-          N: Dim<T>,
+where
+    T: Real + 'static,
+    N: Dim<T>,
 {
     particles.add_property::<Position<T, N>>();
     particles.add_property::<PredPosition<T, N>>();
@@ -28,40 +32,33 @@ pub fn init<T, N>(particles: &mut Particles)
     particles.add_property::<Mass<T>>();
 }
 
-// Alg. 1 `Simulation Loop`, 2
-pub fn apply_forces<T>(p: &Processor, timestep: T)
-    where T: Real + 'static,
+// Alg. 1 `Simulation Loop`, 2+3
+/// Apply external forces and predict positions.
+pub fn integrate<T, N>(p: &Processor, timestep: T)
+where
+    T: Real + 'static,
+    N: Dim<T>,
 {
-    let (velocities, accelerations) = (
-        p.write_property::<Velocity<T, U2>>(),
-        p.read_property::<Acceleration<T, U2>>());
+    let (pred_positions, positions, velocities, accelerations) = (
+        p.write_property::<PredPosition<T, N>>(),
+        p.read_property::<Position<T, N>>(),
+        p.write_property::<Velocity<T, N>>(),
+        p.read_property::<Acceleration<T, N>>());
 
-    par_azip!(
-        mut vel (velocities),
-        accel (accelerations)
-     in { *vel += accel * timestep; });
-}
-
-// Alg. 1 `Simulation Loop`, 3
-// TODO: merge with `apply_forces`
-pub fn predict_position<T>(p: &Processor, timestep: T)
-    where T: Real,
-{
-    let (pred_positions, positions, velocities) = (
-        p.write_property::<PredPosition<T, U2>>(),
-        p.read_property::<Position<T, U2>>(),
-        p.read_property::<Velocity<T, U2>>());
-
-    par_azip!(
-        mut pred_pos (pred_positions),
-        pos (positions),
-        vel (velocities)
-     in { *pred_pos = pos + vel * timestep; });
+    Zip::from(pred_positions)
+        .and(positions)
+        .and(velocities)
+        .and(accelerations)
+        .par_apply(|pred_pos, pos, vel, accel| {
+            *vel += accel * timestep;
+            *pred_pos = pos + vel * timestep;
+        });
 }
 
 // Alg. 1 `Simulation Loop`, 10
 pub fn calculate_lambda<T>(p: &Processor, (rest_density, kernel_size, relaxation, grid): (T, T, T, &BoundedGrid<T, U2>))
-    where T: Real + 'static,
+where
+    T: Real + 'static,
 {
     let (lambdas, positions, masses) = (
         p.write_property::<Lambda<T>>(),
@@ -71,43 +68,41 @@ pub fn calculate_lambda<T>(p: &Processor, (rest_density, kernel_size, relaxation
     let poly_6 = kernel::Poly6::new(kernel_size);
     let spiky = kernel::Spiky::new(kernel_size);
 
-    par_azip!(
-        index i,
-        mut lambda (lambdas),
-        mass (masses),
-        pos (positions),
-    in {
-        // Calculate density (Eq. 2)
-        let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
-        let mut density = mass * poly_6.w(T::zero());
-        grid.for_each_neighbor(cell, 1, |p| {
-            if p == i { return }
-            density += masses[p] * poly_6.w(pos.distance(positions[p]));
+    Zip::indexed(lambdas)
+        .and(masses)
+        .and(positions)
+        .par_apply(|i, lambda, &mass, &pos| {
+            // Calculate density (Eq. 2)
+            let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
+            let mut density = mass * poly_6.w(T::zero());
+            grid.for_each_neighbor(cell, 1, |p| {
+                if p == i { return }
+                density += masses[p] * poly_6.w(pos.distance(positions[p]));
+            });
+
+            // Fluid constraint (Eq. 1)
+            let constraint = density/rest_density - T::one();
+            if constraint <= T::zero() { // TODO: eps
+                *lambda = T::zero();
+                return;
+            }
+
+            let mut sum_grad = T::zero();
+            let mut grad_i = VectorN::<T, U2>::zero();
+
+            // Eq. 8
+            grid.for_each_neighbor(cell, 1, |p| {
+                if p == i { return }
+                let diff = pos - positions[p];
+                let grad_j = diff * (-masses[p] / rest_density * spiky.grad_w(pos.distance(positions[p])));
+                grad_i -= grad_j;
+                sum_grad += grad_j.magnitude2();
+            });
+
+            sum_grad += grad_i.magnitude2();
+
+            *lambda = -constraint / (sum_grad + relaxation);
         });
-
-        // Fluid constraint (Eq. 1)
-        let constraint = density/rest_density - T::one();
-        if constraint <= T::zero() { // TODO: eps
-            *lambda = T::zero();
-            return;
-        }
-
-        let mut sum_grad = T::zero();
-        let mut grad_i = VectorN::<T, U2>::zero();
-
-        // Eq. 8
-        grid.for_each_neighbor(cell, 1, |p| {
-            if p == i { return }
-            let diff = pos - positions[p];
-            let grad_j = diff * (-masses[p] / rest_density * spiky.grad_w(pos.distance(positions[p])));
-            grad_i -= grad_j;
-            sum_grad += grad_j.magnitude2();
-        });
-
-        sum_grad += grad_i.magnitude2();
-
-        *lambda = -constraint / (sum_grad + relaxation);
-    });
 }
 
 // Alg. 1 `Simulation Loop`, 13
@@ -140,47 +135,52 @@ pub fn calculate_pos_delta<T>(p: &Processor, (rest_density, kernel_size, grid): 
     });
 }
 
-pub fn apply_delta<T>(p: &Processor)
-    where T: Real + 'static,
+pub fn apply_delta<T, N>(p: &Processor)
+where
+    T: Real + 'static,
+    N: Dim<T>,
 {
     let (pos, delta) = (
-        p.write_property::<PredPosition<T, U2>>(),
-        p.read_property::<DeltaPos<T, U2>>());
+        p.write_property::<PredPosition<T, N>>(),
+        p.read_property::<DeltaPos<T, N>>());
 
-    par_azip!(
-        mut pos (pos),
-        delta (delta)
-    in { *pos += delta; });
+    Zip::from(pos).and(delta).apply(|pos, delta| {
+        *pos += delta;
+    });
 }
 
 // Alg. 1 `Simulation Loop`, 21
-pub fn update_velocity<T>(p: &Processor, timestep: T)
-    where T: Real + 'static
+pub fn update_velocity<T, N>(p: &Processor, timestep: T)
+where
+    T: Real + 'static,
+    N: Dim<T>,
 {
     let (velocities, positions, pred_positions) = (
-        p.write_property::<Velocity<T, U2>>(),
-        p.read_property::<Position<T, U2>>(),
-        p.read_property::<PredPosition<T, U2>>());
+        p.write_property::<Velocity<T, N>>(),
+        p.read_property::<Position<T, N>>(),
+        p.read_property::<PredPosition<T, N>>());
 
-    par_azip!(
-        mut vel (velocities),
-        pos (positions),
-        pred_pos (pred_positions)
-    in { *vel = (pred_pos - pos) / timestep; });
+    Zip::from(velocities)
+        .and(positions)
+        .and(pred_positions)
+        .par_apply(|vel, pos, pred_pos| {
+            *vel = (pred_pos - pos) / timestep;
+        });
 }
 
 // TODO: combine with other functions?
 // Alg. 1 `Simulation Loop`, 23
-pub fn update_position<T>(p: &Processor)
-    where T: Real + 'static
+pub fn update_position<T, N>(p: &Processor)
+where
+    T: Real + 'static,
+    N: Dim<T>,
 {
     let (positions, pred_positions) = (
-        p.write_property::<Position<T, U2>>(),
-        p.read_property::<PredPosition<T, U2>>());
+        p.write_property::<Position<T, N>>(),
+        p.read_property::<PredPosition<T, N>>());
 
-    par_azip!(
-        mut pos (positions),
-        pred_pos (pred_positions)
-    in { *pos = pred_pos; });
+    Zip::from(positions).and(pred_positions).par_apply(|pos, pred_pos| {
+        *pos = pred_pos.clone();
+    });
 }
 
