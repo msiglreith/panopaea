@@ -1,5 +1,5 @@
 
-//!
+//! Particle properties required for position based dynamics.
 
 use math::{Real, Dim, VectorN};
 use particle::Property;

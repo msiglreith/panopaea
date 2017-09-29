@@ -3,6 +3,7 @@ use cgmath::{ApproxEq, BaseNum, InnerSpace, MetricSpace, VectorSpace};
 use generic_array::GenericArray;
 use generic_array::typenum::{U2};
 use std::ops::{Add, AddAssign, Deref, DerefMut, Div, DivAssign, Mul, Rem, Sub, SubAssign};
+use std::mem;
 use num::Zero;
 
 use super::{Dim, Real};
@@ -55,8 +56,38 @@ impl<S: Add<Output = S> + Copy, N: Dim<S>> Add for VectorN<S, N> {
     }
 }
 
+impl<'a, S: Add<Output = S> + Copy, N: Dim<S>> Add for &'a VectorN<S, N> {
+    type Output = VectorN<S, N>;
+    fn add(self, rhs: Self) -> Self::Output {
+        let mut result: VectorN<S, N> = unsafe { mem::uninitialized() };
+        for i in 0..N::to_usize() {
+            result[i] = self[i] + rhs[i];
+        }
+        result
+    }
+}
+
+impl<'a, S: Add<Output = S> + Copy, N: Dim<S>> Add<VectorN<S, N>> for &'a VectorN<S, N> {
+    type Output = VectorN<S, N>;
+    fn add(self, rhs: VectorN<S, N>) -> Self::Output {
+        let mut result: VectorN<S, N> = unsafe { mem::uninitialized() };
+        for i in 0..N::to_usize() {
+            result[i] = self[i] + rhs[i];
+        }
+        result
+    }
+}
+
 impl<S: AddAssign + Copy, N: Dim<S>> AddAssign for VectorN<S, N> {
     fn add_assign(&mut self, rhs: Self) {
+        for i in 0..N::to_usize() {
+            self[i] += rhs[i];
+        }
+    }
+}
+
+impl<'a, S: AddAssign + Copy, N: Dim<S>> AddAssign<&'a VectorN<S, N>> for VectorN<S, N> {
+    fn add_assign(&mut self, rhs: &'a VectorN<S, N>) {
         for i in 0..N::to_usize() {
             self[i] += rhs[i];
         }
@@ -70,6 +101,17 @@ impl<S: Sub<Output = S> + Copy, N: Dim<S>> Sub for VectorN<S, N> {
             self[i] = self[i] - rhs[i];
         }
         self
+    }
+}
+
+impl<'a, S: Sub<Output = S> + Copy, N: Dim<S>> Sub for &'a VectorN<S, N> {
+    type Output = VectorN<S, N>;
+    fn sub(self, rhs: Self) -> Self::Output {
+        let mut result: VectorN<S, N> = unsafe { mem::uninitialized() };
+        for i in 0..N::to_usize() {
+            result[i] = self[i] - rhs[i];
+        }
+        result
     }
 }
 
@@ -88,6 +130,28 @@ impl<S: Mul<Output = S> + Copy, N: Dim<S>> Mul<S> for VectorN<S, N> {
             self[i] = self[i] * rhs;
         }
         self
+    }
+}
+
+impl<'a, S: Mul<Output = S> + Copy, N: Dim<S>> Mul<S> for &'a VectorN<S, N> {
+    type Output = VectorN<S, N>;
+    fn mul(self, rhs: S) -> Self::Output {
+        let mut result: VectorN<S, N> = unsafe { mem::uninitialized() };
+        for i in 0..N::to_usize() {
+            result[i] = self[i] * rhs;
+        }
+        result
+    }
+}
+
+impl<'a, S: Mul<Output = S> + Copy, N: Dim<S>> Mul<S> for &'a mut VectorN<S, N> {
+    type Output = VectorN<S, N>;
+    fn mul(mut self, rhs: S) -> Self::Output {
+        let mut result: VectorN<S, N> = unsafe { mem::uninitialized() };
+        for i in 0..N::to_usize() {
+            result[i] = self[i] * rhs;
+        }
+        result
     }
 }
 

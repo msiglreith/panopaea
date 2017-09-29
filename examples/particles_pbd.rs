@@ -147,8 +147,7 @@ fn main() {
                     accel[1] += -10.0; // gravity
                 });
             })
-            .run1(pbd::apply_forces, timestep)
-            .run1(pbd::predict_position, timestep)
+            .run1(pbd::integrate::<f32, U2>, timestep)
             // Boundary checks
             .run(|p| {
                 let mut position = p.write_property::<pbd::property::PredPosition<f32, U2>>();
@@ -182,7 +181,7 @@ fn main() {
             particles
                 .run1(pbd::calculate_lambda, (rest_density, smoothing, 0.0001, &grid))
                 .run1(pbd::calculate_pos_delta, (rest_density, smoothing, &grid))
-                .run(pbd::apply_delta::<f32>)
+                .run(pbd::apply_delta::<f32, U2>)
                 .run(|p| {
                     let mut position = p.write_property::<pbd::property::PredPosition<f32, U2>>();
                     // println!("iter: pre pos: {:?}", position);
@@ -198,8 +197,8 @@ fn main() {
         }
 
         particles
-            .run1(pbd::update_velocity, timestep)
-            .run(pbd::update_position::<f32>);
+            .run1(pbd::update_velocity::<f32, U2>, timestep)
+            .run(pbd::update_position::<f32, U2>);
 
         }
 
@@ -207,7 +206,6 @@ fn main() {
         particles.run(|p| {
             let mut vertex = p.write_property::<Vertex>();
             let position = p.read_property::<sph::property::Position<f32, U2>>();
-            let pred_position = p.read_property::<pbd::property::PredPosition<f32, U2>>();
 
             for (mut v, pos) in
                     vertex.iter_mut()
