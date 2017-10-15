@@ -174,7 +174,7 @@ fn main() {
                     pred_position[i] = vel_pos[i].1;
                     velocity[i] = vel_pos[i].2;
                 }
-                grid.construct_ranges(pred_position);
+                grid.build(pred_position);
             });
 
         for _ in 0..4 {
