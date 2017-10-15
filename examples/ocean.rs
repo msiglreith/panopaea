@@ -28,17 +28,15 @@ fn main() {
     };
 
     let mut ocean = ocean::Ocean::new(1<<9);
-    let (height_spectrum, omega) = ocean::build_height_spectrum(&parameters, &spectrum, 1 << 9);
+    let (height_spectrum, omega) = ocean.build_height_spectrum(&parameters, &spectrum);
     let mut displacement = ocean.new_displacement();
 
     {
         let (img_data, dim) = {
             let mut data = Vec::new();
-            // let (density, _) = vel.split();
             for y in 0 .. omega.dim().0 {
                 for x in 0 .. omega.dim().1 {
                     let val = &omega[(y, x)];
-                    // let h = panopaea_utils::imgproc::transfer(&val.re, -20.0, 20.0);
                     data.push([
                         panopaea_utils::imgproc::transfer(&val, -40.0, 40.0),
                         0,

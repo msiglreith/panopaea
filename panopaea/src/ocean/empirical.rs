@@ -86,48 +86,14 @@ pub struct Parameters<T> {
     pub domain_size: T,
 }
 
-pub fn build_height_spectrum<S, T>(
-    parameters: &Parameters<T>,
-    spectrum: &S,
-    resolution: usize) -> (Array2<Complex<T>>, Array2<T>)
-where
-    S: Spectrum<T>,
-    T: Real
-{
-    let pi = T::new(PI);
-    let mut height_spectrum = Array2::from_elem((resolution, resolution), Complex::new(T::zero(), T::zero()));
-    let mut omega = Array2::zeros((resolution, resolution));
-
-    par_azip!(
-        index (j, i),
-        mut height_spectrum,
-        mut omega,
-    in {
-        let x = T::new(2 * i as isize - resolution as isize - 1);
-        let y = T::new(2 * j as isize - resolution as isize - 1);
-
-        let sample = {
-            let k = cgmath::vec2(
-                pi * x / parameters.domain_size,
-                pi * y / parameters.domain_size,
-            );
-            sample_spectrum(parameters, spectrum, k)
-        };
-
-        *height_spectrum = sample.0;
-        *omega = sample.1;
-    });
-
-    (height_spectrum, omega)
-}
-
 fn sample_spectrum<S, T>(
     parameters: &Parameters<T>,
     spectrum: &S,
-    pos: cgmath::Vector2<T>) -> (Complex<T>, T)
+    pos: cgmath::Vector2<T>,
+) -> (Complex<T>, T)
 where
     S: Spectrum<T>,
-    T: Real
+    T: Real,
 {
     if pos.magnitude() < T::default_epsilon() {
         return (Complex::new(T::zero(), T::zero()), T::zero());
@@ -151,7 +117,7 @@ where
 
 fn dispersion_capillary<T>(parameters: &Parameters<T>, wave_number: T) -> (T, T)
 where
-    T: Real
+    T: Real,
 {
     let sech = |x: T| { T::one() / x.cosh() };
 
@@ -228,7 +194,10 @@ pub struct Ocean<T> {
     displacement_z: Array2<Complex<T>>,
 }
 
-impl<T> Ocean<T> where T: Real + fft::FFTnum {
+impl<T> Ocean<T>
+where
+    T: Real + fft::FFTnum,
+{
     pub fn new(resolution: usize) -> Self {
         Ocean {
             fft_plan: fft::FFTplanner::new(true),
@@ -238,6 +207,42 @@ impl<T> Ocean<T> where T: Real + fft::FFTnum {
             displacement_y: Self::new_map(resolution),
             displacement_z: Self::new_map(resolution),
         }
+    }
+
+    pub fn build_height_spectrum<S>(
+        &self,
+        parameters: &Parameters<T>,
+        spectrum: &S,
+    ) -> (Array2<Complex<T>>, Array2<T>)
+    where
+        S: Spectrum<T>,
+    {
+        let resolution = self.resolution;
+        let pi = T::new(PI);
+        let mut height_spectrum = Array2::from_elem((resolution, resolution), Complex::new(T::zero(), T::zero()));
+        let mut omega = Array2::zeros((resolution, resolution));
+
+        par_azip!(
+            index (j, i),
+            mut height_spectrum,
+            mut omega,
+        in {
+            let x = T::new(2 * i as isize - resolution as isize - 1);
+            let y = T::new(2 * j as isize - resolution as isize - 1);
+
+            let sample = {
+                let k = cgmath::vec2(
+                    pi * x / parameters.domain_size,
+                    pi * y / parameters.domain_size,
+                );
+                sample_spectrum(parameters, spectrum, k)
+            };
+
+            *height_spectrum = sample.0;
+            *omega = sample.1;
+        });
+
+        (height_spectrum, omega)
     }
 
     fn new_map(resolution: usize) -> Array2<Complex<T>> {
