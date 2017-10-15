@@ -14,7 +14,7 @@ extern crate rustfft as fft;
 extern crate typenum;
 extern crate cgmath;
 extern crate specs;
-// extern crate sprs;
+extern crate timely;
 
 pub mod dec;
 pub mod domain;

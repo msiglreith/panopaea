@@ -2,13 +2,13 @@
 //! Weakly Compressible Smoothed Particle Hydrodynamics (WCSPH)
 
 use cgmath::MetricSpace;
+use generic_array::ArrayLength;
 use math::{Dim, Real};
 use particle::{Particles, Processor};
-use typenum::U2;
 use num::cast;
 
-use super::grid::BoundedGrid;
 use super::kernel::{self, Kernel};
+use super::neighbor::NeighborSearch;
 use super::property::*;
 
 pub fn init<T, N>(particles: &mut Particles)
@@ -25,13 +25,16 @@ pub fn init<T, N>(particles: &mut Particles)
 /// Compute particle density approximation based on the smoothing kernel.
 ///
 /// Ref: [MDM03] Eq. 3
-pub fn compute_density<T>(p: &Processor, (kernel_size, grid): (T, &BoundedGrid<T, U2>))
-    where T: Real + 'static,
-          // N: Dim<T> + Dim<usize> + Dim<(usize, usize)>,
+pub fn compute_density<T, N, NS>(p: &Processor, (kernel_size, search): (T, &NS))
+where
+    T: Real + 'static,
+    N: Dim<T>,
+    <N as ArrayLength<T>>::ArrayType: Copy,
+    NS: NeighborSearch<T, N>,
 {
     let (density, position, masses) = (
         p.write_property::<Density<T>>(),
-        p.read_property::<Position<T, U2>>(),
+        p.read_property::<Position<T, N>>(),
         p.read_property::<Mass<T>>(),
     );
 
@@ -43,10 +46,10 @@ pub fn compute_density<T>(p: &Processor, (kernel_size, grid): (T, &BoundedGrid<T
         mass (masses),
         pos (position),
     in {
-        let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
+        let cell = if let Some(cell) = search.get_cell(&pos) { cell } else { return };
 
         let mut d = mass * poly_6.w(T::zero());
-        grid.for_each_neighbor(cell, 1, |p| {
+        search.for_each_neighbor(cell, 1, |p| {
             if p == i { return }
             d += masses[p] * poly_6.w(pos.distance(position[p]));
         });
@@ -55,13 +58,17 @@ pub fn compute_density<T>(p: &Processor, (kernel_size, grid): (T, &BoundedGrid<T
     });
 }
 
-pub fn calculate_pressure<T>(p: &Processor, (kernel_size, gas_constant, rest_density, grid): (T, T, T, &BoundedGrid<T, U2>))
-    where T: Real + 'static,
+pub fn calculate_pressure<T, N, NS>(p: &Processor, (kernel_size, gas_constant, rest_density, serch): (T, T, T, &NS))
+where
+    T: Real + 'static,
+    N: Dim<T>,
+    <N as ArrayLength<T>>::ArrayType: Copy,
+    NS: NeighborSearch<T, N>,
 {
     let (densities, positions, accels, masses) = (
         p.read_property::<Density<T>>(),
-        p.read_property::<Position<T, U2>>(),
-        p.write_property::<Acceleration<T, U2>>(),
+        p.read_property::<Position<T, N>>(),
+        p.write_property::<Acceleration<T, N>>(),
         p.read_property::<Mass<T>>(),
     );
 
@@ -72,10 +79,10 @@ pub fn calculate_pressure<T>(p: &Processor, (kernel_size, gas_constant, rest_den
         pos (positions),
         ref accel (accels),
     in {
-        let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
+        let cell = if let Some(cell) = serch.get_cell(&pos) { cell } else { return };
         let pressure_i = gas_constant * (density - rest_density);
 
-        grid.for_each_neighbor(cell, 1, |p| {
+        serch.for_each_neighbor(cell, 1, |p| {
             let pressure_j = gas_constant * (densities[p] - rest_density);
             let density_j = densities[p];
             let mass_j = masses[p];
@@ -86,14 +93,18 @@ pub fn calculate_pressure<T>(p: &Processor, (kernel_size, gas_constant, rest_den
     });
 }
 
-pub fn calculate_viscosity<T>(p: &Processor, (kernel_size,viscosity, grid): (T, T, &BoundedGrid<T, U2>))
-    where T: Real + 'static,
+pub fn calculate_viscosity<T, N, NS>(p: &Processor, (kernel_size,viscosity, search): (T, T, &NS))
+where
+    T: Real + 'static,
+    N: Dim<T>,
+    <N as ArrayLength<T>>::ArrayType: Copy,
+    NS: NeighborSearch<T, N>,
 {
     let (densities, positions, velocities, accels, masses) = (
         p.read_property::<Density<T>>(),
-        p.read_property::<Position<T, U2>>(),
-        p.read_property::<Velocity<T, U2>>(),
-        p.write_property::<Acceleration<T, U2>>(),
+        p.read_property::<Position<T, N>>(),
+        p.read_property::<Velocity<T, N>>(),
+        p.write_property::<Acceleration<T, N>>(),
         p.read_property::<Mass<T>>(),
     );
 
@@ -105,10 +116,10 @@ pub fn calculate_viscosity<T>(p: &Processor, (kernel_size,viscosity, grid): (T, 
         pos (positions),
         vel (velocities),
     in {
-        let cell = if let Some(cell) = grid.get_cell(&pos) { cell } else { return };
+        let cell = if let Some(cell) = search.get_cell(&pos) { cell } else { return };
 
         // TODO: skip own?
-        grid.for_each_neighbor(cell, 1, |p| {
+        search.for_each_neighbor(cell, 1, |p| {
             let diff_vel = velocities[p] - vel;
             *accel += diff_vel * (viscosity * masses[p] / (density * densities[p]) * visc.laplace_w(pos.distance(positions[p])));
         });
@@ -116,13 +127,16 @@ pub fn calculate_viscosity<T>(p: &Processor, (kernel_size,viscosity, grid): (T, 
     });
 }
 
-pub fn integrate_explicit_euler<T>(p: &Processor, timestep: T)
-    where T: Real + 'static,
+pub fn integrate_explicit_euler<T, N>(p: &Processor, timestep: T)
+where
+    T: Real + 'static,
+    N: Dim<T>,
+    <N as ArrayLength<T>>::ArrayType: Copy,
 {
     let (pos, vel, accel) = (
-        p.write_property::<Position<T, U2>>(),
-        p.write_property::<Velocity<T, U2>>(),
-        p.read_property::<Acceleration<T, U2>>(),
+        p.write_property::<Position<T, N>>(),
+        p.write_property::<Velocity<T, N>>(),
+        p.read_property::<Acceleration<T, N>>(),
     );
 
     par_azip!(
