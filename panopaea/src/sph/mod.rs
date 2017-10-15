@@ -9,6 +9,7 @@
 
 pub mod grid;
 pub mod kernel;
+pub mod neighbor;
 pub mod wcsph;
 
 use math::{Real, Dim};
