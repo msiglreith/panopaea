@@ -19,10 +19,10 @@ pub fn vec2<N: na::Scalar>(x: N, y: N) -> na::Vector2<N> {
     na::Vector2::new(x, y)
 }
 
-pub trait Dim<S>: ArrayLength<S> + Clone + 'static {}
+pub trait Dim<S>: ArrayLength<S> + ArrayLength<usize> + Clone + Copy + 'static {}
 impl<T, S> Dim<S> for T
 where
-    T: ArrayLength<S> + Clone + 'static,
+    T: ArrayLength<S> + ArrayLength<usize> + Clone + Copy + 'static,
 {
 }
 
